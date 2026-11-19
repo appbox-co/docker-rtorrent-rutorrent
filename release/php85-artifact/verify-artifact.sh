@@ -3,7 +3,7 @@
 #
 # Usage: release/php85-artifact/verify-artifact.sh <image>
 #
-#   <image> is repo.cylo.net/php-artifacts:php85-8.5.12-r0-alpine3.24 for a
+#   <image> is repo.cylo.net/php-artifacts:php85-8.5.13-r0-alpine3.24 for a
 #   release, or local/php-artifacts-trial:<tag> for a trial run.
 #
 # Exits 0 only when the local image holds exactly the signed php85
@@ -17,9 +17,9 @@ set -eu
 LC_ALL=C
 export LC_ALL
 
-RELEASE_REF="repo.cylo.net/php-artifacts:php85-8.5.12-r0-alpine3.24"
-PHP_VERSION="8.5.12"
-PACKAGE_VERSION="8.5.12-r0"
+RELEASE_REF="repo.cylo.net/php-artifacts:php85-8.5.13-r0-alpine3.24"
+PHP_VERSION="8.5.13"
+PACKAGE_VERSION="8.5.13-r0"
 ALPINE_REF="alpine@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"  # alpine:3.24
 # An existing manifest, read first to prove the credentials work.
 KNOWN_REPOSITORY="rutorrent"
