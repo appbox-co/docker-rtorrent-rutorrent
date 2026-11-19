@@ -178,28 +178,31 @@ start_app() {
     wait_rpc "$app_name"
 }
 
-# The image's healthcheck passes before rTorrent accepts XML-RPC calls, and
-# ruTorrent's addtorrent.php reports "Failed" until it does (the published
-# 5.3.15.6 image behaves the same). Wait until /RPC2 answers
-# system.api_version with the test login before any check runs.
+# The image's healthcheck passes about ten seconds before ruTorrent is
+# usable: .rtlocal.rc schedules ruTorrent's php/initplugins.php 10 s after
+# rTorrent starts (schedule init_plugins), and addtorrent.php reports
+# "Failed" until it has run (the published 5.3.15.6 image behaves the same).
+# Wait until /RPC2 answers with the test login, the ratio plugin's groups
+# (group.rat_0.*, created by initplugins.php) exist and no initplugins.php
+# process is still running, before any check runs.
 wait_rpc() {
     rpc_waited=0
     until docker exec -i -e USERNAME=releasegate -e PASSWORD "$1" python3 - >/dev/null 2>&1 <<'RPCPY'
-import base64, os, sys, urllib.request
-body = b"<?xml version='1.0'?><methodCall><methodName>system.api_version</methodName></methodCall>"
+import base64, os, subprocess, sys, urllib.request, xmlrpc.client
 auth = base64.b64encode(("%s:%s" % (os.environ["USERNAME"], os.environ["PASSWORD"])).encode()).decode()
-req = urllib.request.Request("http://127.0.0.1/RPC2", data=body, method="POST",
-                             headers={"Content-Type": "text/xml", "Authorization": "Basic " + auth})
+req = urllib.request.Request("http://127.0.0.1/RPC2", data=xmlrpc.client.dumps((), "system.listMethods").encode(),
+                             method="POST", headers={"Content-Type": "text/xml", "Authorization": "Basic " + auth})
 with urllib.request.urlopen(req, timeout=10) as resp:
-    data = resp.read()
-sys.exit(0 if resp.status == 200 and b"<value>" in data and b"fault" not in data else 1)
+    methods = xmlrpc.client.loads(resp.read())[0][0]
+running = subprocess.run(["pgrep", "-f", "rutorrent/php/initplugins.php"], capture_output=True).stdout.strip()
+sys.exit(0 if "group.rat_0.ratio.command" in methods and not running else 1)
 RPCPY
     do
-        [ "$rpc_waited" -lt 180 ] || fail "$1: rTorrent XML-RPC did not answer within 180s"
+        [ "$rpc_waited" -lt 180 ] || fail "$1: ruTorrent plugins were not initialised within 180s"
         sleep 3
         rpc_waited=$((rpc_waited + 3))
     done
-    echo "$1 rTorrent XML-RPC ready after ${rpc_waited}s"
+    echo "$1 rTorrent XML-RPC up and ruTorrent plugins initialised after ${rpc_waited}s"
 }
 
 # The checks sign in with USERNAME and PASSWORD from the docker exec environment.
