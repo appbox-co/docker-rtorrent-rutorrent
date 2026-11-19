@@ -1,36 +1,38 @@
-# ruTorrent 5.3.15.5: the published 5.3.15.4 image with only its php85
-# packages upgraded to 8.5.12 for the PHP security release of 21 October 2026
-# (multipart/form-data parsing).
+# ruTorrent 5.3.15.7: the published 5.3.15.6 image with only its php85
+# packages upgraded to 8.5.13 for the PHP security release of 19 November 2026
+# (17 php-src advisories, among them FPM request smuggling, session and
+# timezone-cache use-after-free and the PHP 8.5 backtrace use-after-free).
 #
-# 5.3.15.4 was built from commit f06eb117225f40e69c4d8f23c08cf9a3df22494f
-# (RELEASE-5.3.15.4.md). Starting from its immutable digest keeps rTorrent,
-# libtorrent, ruTorrent, the plugins, rootfs, configuration and every other
-# Alpine package exactly as deployed. A full rebuild of Dockerfile would also
-# pull in unpinned plugin, pip, cpan and GeoIP changes.
+# 5.3.15.6 is RELEASE-5.3.15.6.md (Dockerfile.auth-fail-closed on 5.3.15.5).
+# Starting from its immutable digest keeps rTorrent, libtorrent, ruTorrent,
+# the plugins, rootfs, configuration and every other Alpine package exactly as
+# deployed. A full rebuild of Dockerfile would also pull in unpinned plugin,
+# pip, cpan and GeoIP changes.
 #
-# Alpine's v3.24 index did not have php85 8.5.12 yet, so the packages come
-# from our own build of Alpine's community/php85 APKBUILD, published as the
-# package artifact image PHP85_ARTIFACT (release/php85-artifact/README.md).
+# Alpine's v3.24 index did not have php85 8.5.13 yet, so the packages come
+# from our own build of Alpine's community/php85 APKBUILD at 8.5.13
+# (release/php85-artifact/aport-3.24-8.5.13), published as the package
+# artifact image PHP85_ARTIFACT (release/php85-artifact/README.md).
 # The upgrade uses only that signed repository (no network, its own key
 # directory), so nothing besides the installed php85 packages can change,
 # and the key is never added to /etc/apk/keys. The artifact is bind-mounted
-# for the one RUN, so the image is the 5.3.15.4 layers plus one.
+# for the one RUN, so the image is the 5.3.15.6 layers plus one.
 # release/verify-image.sh is the release gate for this image.
 #
 # Release build (dedicated builder, from the exact pushed commit):
 #   docker build --pull --no-cache --platform linux/amd64 \
-#     -f Dockerfile.php-security -t repo.cylo.net/rutorrent:5.3.15.5-0.16.24 .
+#     -f Dockerfile.php-security -t repo.cylo.net/rutorrent:5.3.15.7-0.16.24 .
 
-ARG PHP85_ARTIFACT=repo.cylo.net/php-artifacts@sha256:c810e2dbf5e5ff8225acc76d816fc76a00495430e9344ccf14acc632d2ad371d
-ARG PHP85_PACKAGE_VERSION=8.5.12-r0
+ARG PHP85_ARTIFACT=repo.cylo.net/php-artifacts@sha256:PENDING_ARTIFACT_DIGEST
+ARG PHP85_PACKAGE_VERSION=8.5.13-r0
 
 FROM ${PHP85_ARTIFACT} AS php85-artifact
 
-FROM repo.cylo.net/rutorrent@sha256:d0d5e6f7577aef143f171f4d05995c045122380311396694b430ec758947d5ee
+FROM repo.cylo.net/rutorrent@sha256:0fcfa6f3bca3f6276edf1ca255e8774db2d8582089583bbbca9b9a6bf5aaa6ce
 
 ARG PHP85_ARTIFACT
 ARG PHP85_PACKAGE_VERSION
-LABEL io.appbox.rutorrent.base-image="repo.cylo.net/rutorrent@sha256:d0d5e6f7577aef143f171f4d05995c045122380311396694b430ec758947d5ee" \
+LABEL io.appbox.rutorrent.base-image="repo.cylo.net/rutorrent@sha256:0fcfa6f3bca3f6276edf1ca255e8774db2d8582089583bbbca9b9a6bf5aaa6ce" \
       io.appbox.php85-artifact="${PHP85_ARTIFACT}"
 
 # Upgrade only the installed php85 packages from the artifact repository,

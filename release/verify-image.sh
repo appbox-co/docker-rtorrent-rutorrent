@@ -1,11 +1,13 @@
 #!/bin/sh
-# Release gate for ruTorrent 5.3.15.5 (Dockerfile.php-security): the 5.3.15.4
-# image with only its php85 packages upgraded, from the self-built php85
-# package artifact image (release/php85-artifact).
+# Release gate for ruTorrent 5.3.15.7 (Dockerfile.php-security): the 5.3.15.6
+# image with only its php85 packages upgraded to 8.5.13, from the self-built
+# php85 package artifact image (release/php85-artifact). Containers run with
+# the catalogue's app 66 environment and install fields, and basic auth is
+# checked on the fresh install and after the upgrade (release/auth-checks.py).
 #
 # Usage: release/verify-image.sh <image>
 #
-#   <image> is repo.cylo.net/rutorrent:5.3.15.5-0.16.24 for a release, or a
+#   <image> is repo.cylo.net/rutorrent:5.3.15.7-0.16.24 for a release, or a
 #   local/rutorrent-trial:<tag> image for a trial run.
 #
 # Exits 0 only when the local image passes every check and the authenticated
@@ -20,14 +22,15 @@ set -eu
 LC_ALL=C
 export LC_ALL
 
-RELEASE_REF="repo.cylo.net/rutorrent:5.3.15.5-0.16.24"
-RELEASE_VERSION="5.3.15.5"
-BASE_REF="repo.cylo.net/rutorrent@sha256:d0d5e6f7577aef143f171f4d05995c045122380311396694b430ec758947d5ee"
+RELEASE_REF="repo.cylo.net/rutorrent:5.3.15.7-0.16.24"
+RELEASE_VERSION="5.3.15.7"
+BASE_NAME="5.3.15.6"
+BASE_REF="repo.cylo.net/rutorrent@sha256:0fcfa6f3bca3f6276edf1ca255e8774db2d8582089583bbbca9b9a6bf5aaa6ce"
 RUTORRENT_REVISION="fe468360f94b02def11bbf67b16316bbe8081380"
-PHP85_FLOOR="8.5.12"
+PHP85_FLOOR="8.5.13"
 # The php85 packages must be exactly these, from this artifact image.
-PHP85_PACKAGE_VERSION="8.5.12-r0"
-PHP85_ARTIFACT_REF="repo.cylo.net/php-artifacts@sha256:c810e2dbf5e5ff8225acc76d816fc76a00495430e9344ccf14acc632d2ad371d"
+PHP85_PACKAGE_VERSION="8.5.13-r0"
+PHP85_ARTIFACT_REF="repo.cylo.net/php-artifacts@sha256:PENDING_ARTIFACT_DIGEST"
 HEALTH_TIMEOUT=900
 
 fail() {
@@ -113,14 +116,14 @@ check_registry() {
     api_status=$(registry_get "$registry/v2/") || fail "registry unreachable"
     [ "$api_status" = 200 ] || fail "registry API check returned HTTP $api_status"
     known_status=$(registry_get "$registry/v2/$repository/manifests/$base_digest") || fail "registry unreachable"
-    [ "$known_status" = 200 ] || fail "registry read of the 5.3.15.4 digest returned HTTP $known_status; state is indeterminate"
+    [ "$known_status" = 200 ] || fail "registry read of the $BASE_NAME digest returned HTTP $known_status; state is indeterminate"
     manifest_status=$(registry_get "$registry/v2/$repository/manifests/$tag") || fail "registry unreachable"
     case "$manifest_status" in
         200) fail "$RELEASE_REF already exists in the registry; refusing to replace it" ;;
         404)
             grep -q 'MANIFEST_UNKNOWN' "$work_dir/registry-body" \
                 || fail "registry returned 404 without MANIFEST_UNKNOWN: $(head -c 300 "$work_dir/registry-body")"
-            echo "5.3.15.4 digest readable; $RELEASE_REF is definitively absent (MANIFEST_UNKNOWN)"
+            echo "$BASE_NAME digest readable; $RELEASE_REF is definitively absent (MANIFEST_UNKNOWN)"
             ;;
         *) fail "registry returned HTTP $manifest_status for $RELEASE_REF" ;;
     esac
@@ -146,7 +149,18 @@ wait_healthy() {
     done
 }
 
+# The catalogue's app-level environment for app 66 (template values
+# replaced with test values), so the containers run as Appbox runs them.
+APPBOX_ENV="-e EXTERNAL_DOMAIN=https://rtorrent.example.test -e RU_HTTP_TIME_OUT=300
+ -e RU_RPC_TIME_OUT=300 -e RU_CACHED_PLUGIN_LOADING=true -e RU_FORBID_USER_SETTINGS=false
+ -e RT_INC_PORT=50000 -e RT_DHT_PORT=6881 -e WAN_IP=127.0.0.1 -e MEMORY_LIMIT=1G
+ -e UPLOAD_MAX_SIZE=1000G -e REAL_IP_FROM=172.20.0.0/12 -e REAL_IP_HEADER=X-Real-IP
+ -e RT_SESSION_SAVE_SECONDS=300 -e XMLRPC_SIZE_LIMIT=10M -e RT_PREALLOCATE_TYPE=1
+ -e RT_SEND_BUFFER_SIZE=0 -e RT_RECEIVE_BUFFER_SIZE=0"
+
 # start_app NAME IMAGE [VOLUME:TARGET ...]
+#   The install fields RUTORRENT_USER and RUTORRENT_PASSWORD are passed (the
+#   password from the environment, not the command line).
 start_app() {
     app_name=$1
     app_image=$2
@@ -156,17 +170,22 @@ start_app() {
         mount_args="$mount_args -v $mount"
     done
     gate_containers="$gate_containers $app_name"
-    # PASSWORD comes from the environment, not the command line.
+    # shellcheck disable=SC2086
     docker run -d --name "$app_name" --label "$gate_label" --platform linux/amd64 --network none \
-        -e USERNAME=releasegate -e PASSWORD -e SKIP_APPBOX_CALLBACK=1 -e WAN_IP=127.0.0.1 \
+        -e RUTORRENT_USER=releasegate -e RUTORRENT_PASSWORD $APPBOX_ENV -e SKIP_APPBOX_CALLBACK=1 \
         $mount_args "$app_image" >/dev/null
     wait_healthy "$app_name"
 }
 
+# The checks sign in with USERNAME and PASSWORD from the docker exec environment.
 in_app() {
     app_name=$1
     shift
-    docker exec -i "$app_name" python3 - "$@" < "$release_dir/runtime-checks.py"
+    docker exec -i -e USERNAME=releasegate -e PASSWORD "$app_name" python3 - "$@" < "$release_dir/runtime-checks.py"
+}
+
+auth_check() {
+    docker exec -i -e USERNAME=releasegate -e PASSWORD "$1" python3 - "$2" < "$release_dir/auth-checks.py"
 }
 
 echo "== Gate $run_id: $image_ref ($gate_mode)"
@@ -180,9 +199,9 @@ docker image inspect "$image_ref" >/dev/null 2>&1 || fail "$image_ref is not a l
 docker image inspect "$BASE_REF" >/dev/null 2>&1 || docker pull --platform linux/amd64 "$BASE_REF" >/dev/null
 [ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image_ref")" = linux/amd64 ] || fail "image is not linux/amd64"
 [ "$(docker image inspect --format '{{index .Config.Labels "io.appbox.rutorrent.revision"}}' "$image_ref")" = "$RUTORRENT_REVISION" ] \
-    || fail "ruTorrent revision label differs from 5.3.15.4"
+    || fail "ruTorrent revision label differs from $BASE_NAME"
 [ "$(docker image inspect --format '{{index .Config.Labels "io.appbox.rutorrent.base-image"}}' "$image_ref")" = "$BASE_REF" ] \
-    || fail "base-image label is not the 5.3.15.4 digest"
+    || fail "base-image label is not the $BASE_NAME digest"
 case "$PHP85_ARTIFACT_REF" in
     repo.cylo.net/php-artifacts@sha256:????????????????????????????????????????????????????????????????) ;;
     *) fail "PHP85_ARTIFACT_REF is not a pinned digest: $PHP85_ARTIFACT_REF" ;;
@@ -191,21 +210,21 @@ esac
     || fail "php85-artifact label is not $PHP85_ARTIFACT_REF"
 for field in '{{json .Config.Entrypoint}}' '{{json .Config.Cmd}}' '{{json .Config.Healthcheck}}' '{{json .Config.Env}}' '{{json .Config.User}}' '{{json .Config.ExposedPorts}}' '{{json .Config.Volumes}}' '{{json .Config.WorkingDir}}'; do
     [ "$(docker image inspect --format "$field" "$image_ref")" = "$(docker image inspect --format "$field" "$BASE_REF")" ] \
-        || fail "image config $field differs from 5.3.15.4"
+        || fail "image config $field differs from $BASE_NAME"
 done
 docker image inspect --format '{{range .RootFS.Layers}}{{println .}}{{end}}' "$BASE_REF" | sed '/^$/d' > "$work_dir/base-layers"
 docker image inspect --format '{{range .RootFS.Layers}}{{println .}}{{end}}' "$image_ref" | sed '/^$/d' > "$work_dir/image-layers"
 base_layer_count=$(wc -l < "$work_dir/base-layers")
 extra_layers=$(( $(wc -l < "$work_dir/image-layers") - base_layer_count ))
 head -n "$base_layer_count" "$work_dir/image-layers" | cmp -s - "$work_dir/base-layers" \
-    || fail "image does not start with the 5.3.15.4 layers"
+    || fail "image does not start with the $BASE_NAME layers"
 # A release adds exactly one layer (the php85 upgrade). A trial against
 # today's index changes no file, and BuildKit then adds no layer.
 case "$gate_mode:$extra_layers" in
     release:1|trial:0|trial:1) ;;
-    *) fail "image adds $extra_layers layer(s) to 5.3.15.4; expected one" ;;
+    *) fail "image adds $extra_layers layer(s) to $BASE_NAME; expected one" ;;
 esac
-echo "5.3.15.4 layers ($base_layer_count) plus $extra_layers; entrypoint, healthcheck and environment unchanged"
+echo "$BASE_NAME layers ($base_layer_count) plus $extra_layers; entrypoint, healthcheck and environment unchanged"
 
 echo "== Packages (only php85 may change)"
 in_image "$BASE_REF" apk info -v | sort > "$work_dir/base-packages"
@@ -274,11 +293,11 @@ echo "php85 $php85_version, php-fpm85 $fpm_version, packages $php85_builds"
 in_image "$image_ref" php85 -r 'exit(version_compare(PHP_VERSION, $argv[1], ">=") ? 0 : 1);' "$php85_floor" \
     || fail "php85 $php85_version is older than $php85_floor"
 
-echo "== PHP modules and configuration match 5.3.15.4"
+echo "== PHP modules and configuration match $BASE_NAME"
 for sapi in php85 php-fpm85; do
     in_image "$BASE_REF" "$sapi" -m > "$work_dir/base-$sapi-modules"
     in_image "$image_ref" "$sapi" -m > "$work_dir/image-$sapi-modules"
-    diff -u "$work_dir/base-$sapi-modules" "$work_dir/image-$sapi-modules" || fail "$sapi module list differs from 5.3.15.4"
+    diff -u "$work_dir/base-$sapi-modules" "$work_dir/image-$sapi-modules" || fail "$sapi module list differs from $BASE_NAME"
 done
 config_listing='find /etc/php85 /etc/nginx /tpls -type f -exec sha256sum {} + | sort -k 2; find / -xdev -name "*.apk-new" 2>/dev/null'
 in_image "$BASE_REF" sh -c "$config_listing" > "$work_dir/base-config"
@@ -304,26 +323,31 @@ for check in "$release_dir"/regression/*.sh; do
 done
 
 PASSWORD=$(od -An -N18 -tx1 /dev/urandom | tr -d ' \n')
-export PASSWORD
+RUTORRENT_PASSWORD=$PASSWORD
+export PASSWORD RUTORRENT_PASSWORD
 
 echo "== Fresh install"
 start_app "$run_id-fresh" "$image_ref"
 fresh_summary=$(in_app "$run_id-fresh" check "$php85_version") || fail "fresh install runtime checks failed"
 echo "$fresh_summary" | tail -n 1
+fresh_auth=$(auth_check "$run_id-fresh" login) || fail "fresh install basic-auth checks failed"
+echo "$fresh_auth" | tail -n 1
 docker rm -fv "$run_id-fresh" >/dev/null
 
-echo "== Upgrade from 5.3.15.4 with the same /torrents and /passwd"
+echo "== Upgrade from $BASE_NAME with the same /torrents and /passwd"
 for suffix in torrents passwd; do
     docker volume create --label "$gate_label" "$run_id-$suffix" >/dev/null
     gate_volumes="$gate_volumes $run_id-$suffix"
 done
 start_app "$run_id-old" "$BASE_REF" "$run_id-torrents:/torrents" "$run_id-passwd:/passwd"
-seeded=$(in_app "$run_id-old" seed | tail -n 1 | jq -r '.seeded') || fail "could not add a torrent on 5.3.15.4"
+seeded=$(in_app "$run_id-old" seed | tail -n 1 | jq -r '.seeded') || fail "could not add a torrent on $BASE_NAME"
 case "$seeded" in [0-9A-F][0-9A-F]*) ;; *) fail "unexpected seed hash: $seeded" ;; esac
 docker stop --time 30 "$run_id-old" >/dev/null
 start_app "$run_id-new" "$image_ref" "$run_id-torrents:/torrents" "$run_id-passwd:/passwd"
 upgrade_summary=$(in_app "$run_id-new" check "$php85_version" "$seeded") || fail "upgrade runtime checks failed"
 echo "$upgrade_summary" | tail -n 1
+upgrade_auth=$(auth_check "$run_id-new" login) || fail "upgrade basic-auth checks failed"
+echo "$upgrade_auth" | tail -n 1
 
 check_registry
 
