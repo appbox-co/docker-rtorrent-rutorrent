@@ -175,6 +175,31 @@ start_app() {
         -e RUTORRENT_USER=releasegate -e RUTORRENT_PASSWORD $APPBOX_ENV -e SKIP_APPBOX_CALLBACK=1 \
         $mount_args "$app_image" >/dev/null
     wait_healthy "$app_name"
+    wait_rpc "$app_name"
+}
+
+# The image's healthcheck passes before rTorrent accepts XML-RPC calls, and
+# ruTorrent's addtorrent.php reports "Failed" until it does (the published
+# 5.3.15.6 image behaves the same). Wait until /RPC2 answers
+# system.api_version with the test login before any check runs.
+wait_rpc() {
+    rpc_waited=0
+    until docker exec -i -e USERNAME=releasegate -e PASSWORD "$1" python3 - >/dev/null 2>&1 <<'RPCPY'
+import base64, os, sys, urllib.request
+body = b"<?xml version='1.0'?><methodCall><methodName>system.api_version</methodName></methodCall>"
+auth = base64.b64encode(("%s:%s" % (os.environ["USERNAME"], os.environ["PASSWORD"])).encode()).decode()
+req = urllib.request.Request("http://127.0.0.1/RPC2", data=body, method="POST",
+                             headers={"Content-Type": "text/xml", "Authorization": "Basic " + auth})
+with urllib.request.urlopen(req, timeout=10) as resp:
+    data = resp.read()
+sys.exit(0 if resp.status == 200 and b"<value>" in data and b"fault" not in data else 1)
+RPCPY
+    do
+        [ "$rpc_waited" -lt 180 ] || fail "$1: rTorrent XML-RPC did not answer within 180s"
+        sleep 3
+        rpc_waited=$((rpc_waited + 3))
+    done
+    echo "$1 rTorrent XML-RPC ready after ${rpc_waited}s"
 }
 
 # The checks sign in with USERNAME and PASSWORD from the docker exec environment.
