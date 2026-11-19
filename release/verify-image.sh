@@ -30,7 +30,7 @@ RUTORRENT_REVISION="fe468360f94b02def11bbf67b16316bbe8081380"
 PHP85_FLOOR="8.5.13"
 # The php85 packages must be exactly these, from this artifact image.
 PHP85_PACKAGE_VERSION="8.5.13-r0"
-PHP85_ARTIFACT_REF="repo.cylo.net/php-artifacts@sha256:PENDING_ARTIFACT_DIGEST"
+PHP85_ARTIFACT_REF="repo.cylo.net/php-artifacts@sha256:75886f598da9b2bed755db76dbb66804ce77ad392e3d19cd4b89cb3e3688cb95"
 HEALTH_TIMEOUT=900
 
 fail() {
