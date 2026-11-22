@@ -45,7 +45,7 @@ def get(path, auth=True):
 def served():
     result = {}
     for theme, colours in THEMES.items():
-        assert (THEMES_DIR / theme / "init.js").is_file(), f"theme {theme} is missing"
+        assert (THEMES_DIR / theme / "style.css").is_file(), f"theme {theme} is missing"
         path = f"/plugins/autodl-rutorrent/css/{theme.lower()}.min.css"
         status, body = get(path)
         assert status == 200, f"{path} returned HTTP {status}"
