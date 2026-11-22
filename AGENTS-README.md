@@ -16,7 +16,9 @@ users, additional plugins, and a custom mobile ruTorrent UI.
 - Registry tag: `repo.cylo.net/rutorrent:5.3.15.4-0.16.24`; `5.3.15.5-0.16.24` is the
   PHP security release, built with `-f Dockerfile.php-security`, and
   `5.3.15.6-0.16.24` the basic-auth hardening release, built with
-  `-f Dockerfile.auth-fail-closed` (see below).
+  `-f Dockerfile.auth-fail-closed`. `5.3.15.7-0.16.24` is the next PHP
+  security release (`-f Dockerfile.php-security`) and `5.3.15.8-0.16.24` the
+  autodl theme stylesheet release (`-f Dockerfile.autodl-themes`); see below.
 - Base runtime: `crazymax/alpine-s6:3.24-3.2.3.0`
 - rTorrent / libtorrent: `0.16.24`
 - ruTorrent: `5.3.15` (upstream commit `fe468360f94b02def11bbf67b16316bbe8081380`, catalogue `5.3.15.4`)
@@ -115,6 +117,15 @@ The Dockerfile builds or vendors:
 `scripts/patch-autodl-rutorrent-html5.py` is applied at build time and by `03-config.sh`
 on every boot. This is intentional so persisted custom plugin overrides also get patched.
 Do not make autodl fixes only in the generated image tree.
+
+autodl-rutorrent loads `css/<theme>.min.css` (the active theme's directory name in
+lower case) and ships stylesheets only for Standard, Acid, Blue, Dark, Excel and
+Oblivion. Since 5.3.15.8 the patch script also writes `club-quickbox`, `darkbetter`,
+`materialdesign` and `oblivionblue` stylesheets (`THEME_STYLESHEETS`): the matching
+bundled colours plus a layout that keeps the Filters window on screen. Each generated
+file starts with `GENERATED_MARKER`; the script rewrites only files that start with it,
+so a stylesheet shipped by a custom plugin is left alone. Add a theme there when the
+image gains one that autodl has no stylesheet for.
 
 `rootfs/usr/local/bin/patch-rutorrent-dht-port.py` patches the upstream PHP and
 JavaScript 0.16 command maps at build time. Keep both maps aligned: ruTorrent's
@@ -236,6 +247,26 @@ docker build --pull --no-cache --platform linux/amd64 \
   -f Dockerfile.auth-fail-closed -t repo.cylo.net/rutorrent:5.3.15.6-0.16.24 . && \
   release/verify-auth-image.sh repo.cylo.net/rutorrent:5.3.15.6-0.16.24 && \
   docker push repo.cylo.net/rutorrent:5.3.15.6-0.16.24
+```
+
+## autodl theme stylesheets (5.3.15.8)
+
+`Dockerfile.autodl-themes` builds catalogue `5.3.15.8` / tag `5.3.15.8-0.16.24`
+from the immutable 5.3.15.7 image digest and replaces only
+`/usr/local/bin/patch-autodl-rutorrent-html5.py`, then runs it, which adds the four
+generated stylesheets to `plugins/autodl-rutorrent/css/`. Release gate:
+`release/verify-autodl-image.sh <image>` (filesystem identical to 5.3.15.7 except the
+script and its four stylesheets, script idempotency and foreign-file checks, the
+stylesheets served through nginx with the login on a fresh install and after a
+restart, a custom autodl plugin patched on start, upgrade from 5.3.15.7 with
+club-QuickBox selected and a 404 control on 5.3.15.7, registry absence). Details in
+`RELEASE-5.3.15.8.md`.
+
+```bash
+docker build --builder default --pull --no-cache --platform linux/amd64 \
+  -f Dockerfile.autodl-themes -t repo.cylo.net/rutorrent:5.3.15.8-0.16.24 . && \
+  release/verify-autodl-image.sh repo.cylo.net/rutorrent:5.3.15.8-0.16.24 && \
+  docker push repo.cylo.net/rutorrent:5.3.15.8-0.16.24
 ```
 
 ## Build And Release
