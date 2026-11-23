@@ -18,7 +18,8 @@ users, additional plugins, and a custom mobile ruTorrent UI.
   `5.3.15.6-0.16.24` the basic-auth hardening release, built with
   `-f Dockerfile.auth-fail-closed`. `5.3.15.7-0.16.24` is the next PHP
   security release (`-f Dockerfile.php-security`) and `5.3.15.8-0.16.24` the
-  autodl theme stylesheet release (`-f Dockerfile.autodl-themes`); see below.
+  autodl theme stylesheet release (`-f Dockerfile.autodl-themes`), followed by
+  `5.3.15.9-0.16.24` (same Dockerfile); see below.
 - Base runtime: `crazymax/alpine-s6:3.24-3.2.3.0`
 - rTorrent / libtorrent: `0.16.24`
 - ruTorrent: `5.3.15` (upstream commit `fe468360f94b02def11bbf67b16316bbe8081380`, catalogue `5.3.15.4`)
@@ -125,7 +126,11 @@ Oblivion. Since 5.3.15.8 the patch script also writes `club-quickbox`, `darkbett
 bundled colours plus a layout that keeps the Filters window on screen. Each generated
 file starts with `GENERATED_MARKER`; the script rewrites only files that start with it,
 so a stylesheet shipped by a custom plugin is left alone. Add a theme there when the
-image gains one that autodl has no stylesheet for.
+image gains one that autodl has no stylesheet for. Since 5.3.15.9 the same layout is
+also appended to autodl's own six stylesheets (`BUNDLED_STYLESHEETS`), between
+`LAYOUT_BEGIN` and `LAYOUT_END`, because their fixed 350px Filters window overflows on
+ruTorrent 5. The block is replaced on every run, and the generated stylesheets copy
+the bundled colours without it.
 
 `rootfs/usr/local/bin/patch-rutorrent-dht-port.py` patches the upstream PHP and
 JavaScript 0.16 command maps at build time. Keep both maps aligned: ruTorrent's
@@ -262,11 +267,17 @@ restart, a custom autodl plugin patched on start, upgrade from 5.3.15.7 with
 club-QuickBox selected and a 404 control on 5.3.15.7, registry absence). Details in
 `RELEASE-5.3.15.8.md`.
 
+5.3.15.9 uses the same Dockerfile and gate, now based on the 5.3.15.8 digest: the
+script also appends the layout to autodl's six own stylesheets, and the gate expects
+exactly those six files and the script to differ from 5.3.15.8, with the four generated
+stylesheets unchanged and an upgrade from 5.3.15.8 with Oblivion selected. Details in
+`RELEASE-5.3.15.9.md`.
+
 ```bash
 docker build --builder default --pull --no-cache --platform linux/amd64 \
-  -f Dockerfile.autodl-themes -t repo.cylo.net/rutorrent:5.3.15.8-0.16.24 . && \
-  release/verify-autodl-image.sh repo.cylo.net/rutorrent:5.3.15.8-0.16.24 && \
-  docker push repo.cylo.net/rutorrent:5.3.15.8-0.16.24
+  -f Dockerfile.autodl-themes -t repo.cylo.net/rutorrent:5.3.15.9-0.16.24 . && \
+  release/verify-autodl-image.sh repo.cylo.net/rutorrent:5.3.15.9-0.16.24 && \
+  docker push repo.cylo.net/rutorrent:5.3.15.9-0.16.24
 ```
 
 ## Build And Release

@@ -16,7 +16,9 @@ autodl-rutorrent compatibility patch for modern ruTorrent:
   window on screen.
 - autodl's own six stylesheets give the Filters window a fixed 350px height,
   so on ruTorrent 5 the filter settings spill out below it. The same layout
-  is appended to each of them between LAYOUT_BEGIN and LAYOUT_END.
+  is appended to each of them between LAYOUT_BEGIN and LAYOUT_END, with
+  DIALOG_POSITION for blue.min.css, which took autodl's dialog windows out of
+  ruTorrent's absolute positioning.
 
 The image runs this at build time and 03-config.sh runs it on every start, so
 a persisted custom autodl-rutorrent plugin is patched too.
@@ -60,6 +62,16 @@ SOURCE_MAP_RE = re.compile(r"/\*# sourceMappingURL=[^*]*\*/\s*")
 BUNDLED_STYLESHEETS = ("acid", "blue", "dark", "excel", "oblivion", "standard")
 LAYOUT_BEGIN = "/* Appbox Filters layout (patch-autodl-rutorrent-html5.py): begin */"
 LAYOUT_END = "/* Appbox Filters layout: end */"
+# blue.min.css sets #autodl-filters, #autodl-trackers, #autodl-servers,
+# #autodl-prefs and #autodl-multiselect to position:relative, which also
+# matches the dialog windows with those ids and overrides ruTorrent's
+# .dlg-window{position:absolute}: the dialog then sits below the page and the
+# browser scrolls the page to reach it. Put the windows back; the inner
+# content divs that share the ids stay relative.
+DIALOG_POSITION = (
+    ".dlg-window#autodl-filters,.dlg-window#autodl-trackers,.dlg-window#autodl-servers,"
+    ".dlg-window#autodl-prefs,.dlg-window#autodl-multiselect{position:absolute}"
+)
 
 
 def without_layout(content: str) -> str:
@@ -76,7 +88,7 @@ def without_layout(content: str) -> str:
 def append_layout(css_dir: pathlib.Path) -> None:
     if not css_dir.is_dir():
         return
-    block = f"{LAYOUT_BEGIN}\n{FILTERS_LAYOUT.strip()}\n{LAYOUT_END}\n"
+    block = f"{LAYOUT_BEGIN}\n{FILTERS_LAYOUT.strip()}\n{DIALOG_POSITION}\n{LAYOUT_END}\n"
     for name in BUNDLED_STYLESHEETS:
         path = css_dir / f"{name}.min.css"
         if not path.is_file():

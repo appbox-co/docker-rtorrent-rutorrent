@@ -75,6 +75,7 @@ def served():
         assert body.index(LAYOUT_BEGIN) > body.index(b"#autodl-filters{width:600px;height:350px}"), f"{path}: layout block is not after autodl's rules"
         block = body[body.index(LAYOUT_BEGIN):]
         assert LIST_RULE in block and b"#autodl-filters{height:auto}" in block, f"{path} layout block is incomplete"
+        assert b".dlg-window#autodl-filters," in block and b"{position:absolute}" in block, f"{path} layout block lacks the dialog position rule"
         assert not body.startswith(MARKER), f"{path} was replaced by a generated stylesheet"
         result[name] = len(body)
     return result
