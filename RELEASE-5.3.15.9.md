@@ -82,4 +82,17 @@ with the Blue rule): `release/verify-autodl-image.sh` passed. It checks:
   torrents, theme and autodl.cfg are kept;
 - that the registry reports the tag absent.
 
-Release build and push: not done yet.
+Release build: `docker build --builder default --pull --no-cache --platform linux/amd64 -f Dockerfile.autodl-themes -t repo.cylo.net/rutorrent:5.3.15.9-0.16.24 .`
+on builder.grant from the exact pushed commit
+`d77fdaff7822b86fa5091eb8094c75d90e8d44e3`. `release/verify-autodl-image.sh`
+passed in release mode with the results above, the registry reported the tag
+absent before and after the checks, and the first push succeeded.
+
+## Published
+
+- `repo.cylo.net/rutorrent:5.3.15.9-0.16.24`
+- Digest: `sha256:b4b93012e2a789d38e1da2a6a446d53f1220d2f676d44853bbce7864f67256df`
+  (OCI index: linux/amd64 `sha256:f14e84f55d79e072094cffa8efdd6b231de0271b720be170de3757461afd1183` plus attestation)
+
+Catalogue: cylo-api `migrations/20261123_rutorrent_5_3_15_9.sql` (admin-only,
+not default) and `..._publish.sql`.
