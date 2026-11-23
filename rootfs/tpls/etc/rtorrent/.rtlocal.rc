@@ -7,6 +7,8 @@ method.insert = cfg.download, private|const|string, (cat,"/torrents/")
 method.insert = cfg.download_complete, private|const|string, (cat,(cfg.download),"completed/")
 method.insert = cfg.download_temp, private|const|string, (cat,(cfg.download),"downloading/")
 method.insert = cfg.logs, private|const|string, (cat,(cfg.basedir),"log/")
+# Session directory - check for old 'session' dir first for backwards compatibility
+# If /torrents/config/rtorrent/session exists and has files, use it; otherwise use .session
 method.insert = cfg.session, private|const|string, (cat,(cfg.basedir),".session/")
 method.insert = cfg.watch, private|const|string, (cat,(cfg.download),"watch/")
 method.insert = cfg.rundir, private|const|string, (cat,"/var/run/rtorrent/")
@@ -29,33 +31,35 @@ network.bind_address.set = 0.0.0.0
 
 # SCGI socket and make it group-writable and secure
 network.scgi.open_local = (cat, (cfg.rundir), "scgi.socket")
-schedule2 = scgi_permission, 0, 0, (cat,"execute.nothrow=chmod,\"g+w,o=\",",(cfg.rundir),"scgi.socket")
+schedule = scgi_permission, 0, 0, (cat,"execute.nothrow=chmod,\"g+w,o=\",",(cfg.rundir),"scgi.socket")
 
 # Listening port for incoming peer traffic
-network.port_range.set = @RT_INC_PORT@-@RT_INC_PORT@
-network.port_random.set = no
+network.listen.port.range.set = @RT_INC_PORT@-@RT_INC_PORT@
+network.listen.port.random.set = no
 
 # UDP port to use for DHT
-dht.port.set = @RT_DHT_PORT@
+dht.override_port.set = @RT_DHT_PORT@
 
 # XMLRPC size limit
 network.xmlrpc.size_limit.set = @XMLRPC_SIZE_LIMIT@
 
-# Configure session saving interval to balance disk usage and torrent information accuracy
-schedule2 = session_save, 1200, @RT_SESSION_SAVE_SECONDS@, ((session.save))
+# Save after the first minute, then every five minutes by default.
+# A separate name keeps an older custom session_save timer from replacing this one.
+schedule = appbox_session_save, 60, @RT_SESSION_SAVE_SECONDS@, ((session.save))
 
-# Save torrents immediately to prevent losing them between session saving intervals
-# Schedule task to run in background (with unique hash) to avoid seeding impact
-method.set_key = event.download.inserted_new, "schedule2 = ((d.hash)), 0, 0, ((d.save_full_session))"
+# Queue a final snapshot before shutdown waits for tracker/network cleanup.
+method.set_key = event.system.shutdown, appbox_session_save, ((session.save))
+
+# rTorrent's built-in ~_save_full handler saves newly inserted torrents.
 
 # Configure whether to delay tracker announces at startup
 trackers.delay_scrape = @RT_TRACKER_DELAY_SCRAPE@
 
-# Configure TCP rmem and wmem for rTorrent client
+# Zero skips explicit socket buffer options and preserves kernel TCP autotuning.
 network.send_buffer.size.set = @RT_SEND_BUFFER_SIZE@
 network.receive_buffer.size.set = @RT_RECEIVE_BUFFER_SIZE@
 
-# Configure preallocation feature for rTorrent client
+# Preallocation: 0 disables it; 1 enables allocation as each file is opened for writing.
 system.file.allocate.set = @RT_PREALLOCATE_TYPE@
 
 # Logging
@@ -68,4 +72,7 @@ log.add_output = "rpc_events","log"
 #log.xmlrpc = (cat,(cfg.logs),"xmlrpc.log")
 
 # Initialize plugins after a 10 seconds delay
-schedule2 = init_plugins, 10, 0, "execute2 = {sh,-c,/usr/bin/php84 /var/www/rutorrent/php/initplugins.php rtorrent &}"
+schedule = init_plugins, 10, 0, "execute = {sh,-c,/usr/bin/php85 /var/www/rutorrent/php/initplugins.php @RUTORRENT_USER@ &}"
+
+# Let rTorrent validate its saved resume state. Zero progress alone does not
+# justify forcing a torrent into the hash-check queue on every restart.

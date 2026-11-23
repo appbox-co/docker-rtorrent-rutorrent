@@ -24,11 +24,20 @@ WEBDAV_AUTHBASIC_STRING=${WEBDAV_AUTHBASIC_STRING:-WebDAV restricted access}
 RT_LOG_LEVEL=${RT_LOG_LEVEL:-info}
 RT_LOG_EXECUTE=${RT_LOG_EXECUTE:-false}
 RT_LOG_XMLRPC=${RT_LOG_XMLRPC:-false}
-RT_SESSION_SAVE_SECONDS=${RT_SESSION_SAVE_SECONDS:-3600}
+RT_SESSION_SAVE_SECONDS=${RT_SESSION_SAVE_SECONDS:-300}
+# Migrate the former image/catalogue defaults; keep other explicit intervals.
+case "$RT_SESSION_SAVE_SECONDS" in
+  3600|10800) RT_SESSION_SAVE_SECONDS=300 ;;
+esac
 RT_TRACKER_DELAY_SCRAPE=${RT_TRACKER_DELAY_SCRAPE:-true}
-RT_SEND_BUFFER_SIZE=${RT_SEND_BUFFER_SIZE:-4M}
-RT_RECEIVE_BUFFER_SIZE=${RT_RECEIVE_BUFFER_SIZE:-4M}
+# Zero lets libtorrent leave TCP buffer sizing to the kernel.
+RT_SEND_BUFFER_SIZE=${RT_SEND_BUFFER_SIZE:-0}
+RT_RECEIVE_BUFFER_SIZE=${RT_RECEIVE_BUFFER_SIZE:-0}
 RT_PREALLOCATE_TYPE=${RT_PREALLOCATE_TYPE:-0}
+# Older Appbox releases supplied 2; rTorrent uses 0/1, not allocation modes.
+if [ "$RT_PREALLOCATE_TYPE" = "2" ]; then
+  RT_PREALLOCATE_TYPE=1
+fi
 
 RU_REMOVE_CORE_PLUGINS=${RU_REMOVE_CORE_PLUGINS:-false}
 RU_HTTP_USER_AGENT=${RU_HTTP_USER_AGENT:-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36}
@@ -53,7 +62,7 @@ RT_DHT_PORT=${RT_DHT_PORT:-6881}
 RT_INC_PORT=${RT_INC_PORT:-50000}
 XMLRPC_PORT=${XMLRPC_PORT:-8000}
 XMLRPC_HEALTH_PORT=$((XMLRPC_PORT + 1))
-RUTORRENT_PORT=${RUTORRENT_PORT:-8080}
+RUTORRENT_PORT=${RUTORRENT_PORT:-80}
 RUTORRENT_HEALTH_PORT=$((RUTORRENT_PORT + 1))
 WEBDAV_PORT=${WEBDAV_PORT:-9000}
 WEBDAV_HEALTH_PORT=$((WEBDAV_PORT + 1))
@@ -77,17 +86,17 @@ echo "Setting PHP-FPM configuration..."
 sed -e "s/@MEMORY_LIMIT@/$MEMORY_LIMIT/g" \
   -e "s/@UPLOAD_MAX_SIZE@/$UPLOAD_MAX_SIZE/g" \
   -e "s/@CLEAR_ENV@/$CLEAR_ENV/g" \
-  /tpls/etc/php84/php-fpm.d/www.conf > /etc/php84/php-fpm.d/www.conf
+  /tpls/etc/php85/php-fpm.d/www.conf > /etc/php85/php-fpm.d/www.conf
 
 echo "Setting PHP INI configuration..."
-sed -i "s|memory_limit.*|memory_limit = ${MEMORY_LIMIT}|g" /etc/php84/php.ini
-sed -i "s|;date\.timezone.*|date\.timezone = ${TZ}|g" /etc/php84/php.ini
-sed -i "s|max_file_uploads.*|max_file_uploads = ${MAX_FILE_UPLOADS}|g" /etc/php84/php.ini
+sed -i "s|memory_limit.*|memory_limit = ${MEMORY_LIMIT}|g" /etc/php85/php.ini
+sed -i "s|;date\.timezone.*|date\.timezone = ${TZ}|g" /etc/php85/php.ini
+sed -i "s|max_file_uploads.*|max_file_uploads = ${MAX_FILE_UPLOADS}|g" /etc/php85/php.ini
 
 # OpCache
 echo "Setting OpCache configuration..."
 sed -e "s/@OPCACHE_MEM_SIZE@/$OPCACHE_MEM_SIZE/g" \
-  /tpls/etc/php84/conf.d/opcache.ini > /etc/php84/conf.d/opcache.ini
+  /tpls/etc/php85/conf.d/opcache.ini > /etc/php85/conf.d/opcache.ini
 
 # Nginx
 echo "Setting Nginx configuration..."
@@ -162,25 +171,24 @@ touch /passwd/rpc.htpasswd \
   "${RU_LOG_FILE}"
 rm -f /torrents/config/rtorrent/.session/rtorrent.lock
 
-# Check htpasswd files
-if [ ! -s "/passwd/rpc.htpasswd" ]; then
-  echo "rpc.htpasswd is empty, removing authentication..."
-  sed -i "s!auth_basic .*!#auth_basic!g" /etc/nginx/conf.d/rpc.conf
-  sed -i "s!auth_basic_user_file.*!#auth_basic_user_file!g" /etc/nginx/conf.d/rpc.conf
-fi
-if [ ! -s "/passwd/rutorrent.htpasswd" ]; then
-  echo "rutorrent.htpasswd is empty, removing authentication..."
-  sed -i "s!auth_basic .*!#auth_basic!g" /etc/nginx/conf.d/rutorrent.conf
-  sed -i "s!auth_basic_user_file.*!#auth_basic_user_file!g" /etc/nginx/conf.d/rutorrent.conf
-fi
-if [ ! -s "/passwd/webdav.htpasswd" ]; then
-  echo "webdav.htpasswd is empty, removing authentication..."
-  sed -i "s!auth_basic .*!#auth_basic!g" /etc/nginx/conf.d/webdav.conf
-  sed -i "s!auth_basic_user_file.*!#auth_basic_user_file!g" /etc/nginx/conf.d/webdav.conf
-fi
+# Check htpasswd files. Basic auth is never switched off. Upstream commented
+# out auth_basic when a file was empty, which served ruTorrent (including
+# /RPC2), XML-RPC or WebDAV without a login. nginx now keeps auth_basic, so an
+# empty password file refuses every login (401) and a missing one fails the
+# request, until credentials are set. 025-set-passwd.sh writes all three files
+# from RUTORRENT_USER/RUTORRENT_PASSWORD (or USERNAME/PASSWORD) on every start;
+# /moduser.sh <password> writes them at runtime and takes effect immediately.
+for htpasswd_file in /passwd/rutorrent.htpasswd /passwd/rpc.htpasswd /passwd/webdav.htpasswd; do
+  if [ ! -s "${htpasswd_file}" ]; then
+    echo "ERROR: ${htpasswd_file} is empty or missing; authentication stays on and every login is refused until a username and password are set (RUTORRENT_USER/RUTORRENT_PASSWORD, or /moduser.sh <password>)." >&2
+  fi
+done
 
 # rTorrent local config
 echo "Checking rTorrent local configuration..."
+# Default RUTORRENT_USER to USERNAME/rtorrent if not set
+RUTORRENT_USER=${RUTORRENT_USER:-${USERNAME:-rtorrent}}
+
 sed -e "s!@RT_LOG_LEVEL@!$RT_LOG_LEVEL!g" \
   -e "s!@RT_DHT_PORT@!$RT_DHT_PORT!g" \
   -e "s!@RT_INC_PORT@!$RT_INC_PORT!g" \
@@ -190,6 +198,7 @@ sed -e "s!@RT_LOG_LEVEL@!$RT_LOG_LEVEL!g" \
   -e "s!@RT_SEND_BUFFER_SIZE@!$RT_SEND_BUFFER_SIZE!g" \
   -e "s!@RT_RECEIVE_BUFFER_SIZE@!$RT_RECEIVE_BUFFER_SIZE!g" \
   -e "s!@RT_PREALLOCATE_TYPE@!$RT_PREALLOCATE_TYPE!g" \
+  -e "s!@RUTORRENT_USER@!$RUTORRENT_USER!g" \
   /tpls/etc/rtorrent/.rtlocal.rc > /torrents/config/rtorrent/.rtlocal.rc
 if [ "${RT_LOG_EXECUTE}" = "true" ]; then
   echo "  Enabling rTorrent execute log..."
@@ -202,9 +211,11 @@ fi
 
 # rTorrent config
 echo "Checking rTorrent configuration..."
+# A new container has no local marker, including normal version upgrades.
+# Only the legacy Appbox layout requires replacing the retained configuration.
 if [ ! -f /etc/app_configured ]; then
-  if [ -f /torrents/config/rtorrent/.rtorrent.rc ]; then
-    echo "Backing up existing rTorrent configuration..."
+  if [ -f /torrents/config/rtorrent/.rtorrent.rc ] && grep -q "Appbox ruTorrent" /torrents/config/rtorrent/.rtorrent.rc; then
+    echo "Backing up legacy Appbox rTorrent configuration..."
     mv /torrents/config/rtorrent/.rtorrent.rc /torrents/config/rtorrent/.rtorrent.rc.bak
   fi
 fi
@@ -215,8 +226,13 @@ if [ ! -f /torrents/config/rtorrent/.rtorrent.rc ]; then
 fi
 chown rtorrent:rtorrent /torrents/config/rtorrent/.rtorrent.rc
 
+# Existing configured containers can retain the former default watch rules.
+python3 /usr/local/bin/migrate-autowatch-config.py /torrents/config/rtorrent/.rtorrent.rc || exit 1
+python3 /usr/local/bin/migrate-rtorrent-016-config.py /torrents/config/rtorrent/.rtorrent.rc || exit 1
+
 # ruTorrent config
 echo "Bootstrapping ruTorrent configuration..."
+python3 /usr/local/bin/patch-rutorrent-stable-progress.py /var/www/rutorrent
 cat > /var/www/rutorrent/conf/config.php <<EOL
 <?php
 
@@ -318,6 +334,22 @@ if [ ! -f /torrents/config/rutorrent/conf/plugins.ini ]; then
 fi
 chown rtorrent:rtorrent /torrents/config/rutorrent/conf/plugins.ini
 
+# Existing installs may still have upstream's user-defined default; flip to enabled=yes so
+# bundled plugins stay available after upgrade, matching prior Appbox behaviour.
+if grep -q '^enabled = user-defined$' /torrents/config/rutorrent/conf/plugins.ini 2>/dev/null; then
+  sed -i '/^\[default\]/,/^\[/s/^enabled = user-defined$/enabled = yes/' /torrents/config/rutorrent/conf/plugins.ini
+fi
+
+# Keep the new mobile plugin enabled even on older persisted plugins.ini files.
+if ! grep -q '^\[mobile\]' /torrents/config/rutorrent/conf/plugins.ini 2>/dev/null; then
+  {
+    echo ""
+    echo "[mobile]"
+    echo "enabled = yes"
+  } >> /torrents/config/rutorrent/conf/plugins.ini
+fi
+chown rtorrent:rtorrent /torrents/config/rutorrent/conf/plugins.ini
+
 # Remove ruTorrent core plugins
 if [ "$RU_REMOVE_CORE_PLUGINS" != "false" ]; then
   for i in ${RU_REMOVE_CORE_PLUGINS//,/ }
@@ -384,6 +416,14 @@ for pluginConfFile in /torrents/config/rutorrent/plugins-conf/*.php; do
   chown nobody:nogroup "/var/www/rutorrent/plugins/${pluginName}/conf.php"
 done
 
+# autodl-rutorrent may come either from the image or from a persisted custom plugin override.
+# Patch the live plugin tree on every boot so upgrades do not depend on a fresh install.
+if [ -d "/var/www/rutorrent/plugins/autodl-rutorrent" ]; then
+  echo "Patching autodl-rutorrent HTML for modern browsers..."
+  python3 /usr/local/bin/patch-autodl-rutorrent-html5.py /var/www/rutorrent/plugins/autodl-rutorrent
+  chown -R nobody:nogroup /var/www/rutorrent/plugins/autodl-rutorrent
+fi
+
 echo "Checking ruTorrent custom themes..."
 themes=$(ls -l /torrents/config/rutorrent/themes | grep -E '^d' | awk '{print $9}')
 for theme in ${themes}; do
@@ -400,9 +440,10 @@ if [ -d "/var/www/rutorrent/plugins/geoip2" ]; then
   if [ ! "$(ls -A /torrents/config/geoip)" ]; then
     cp -f /var/mmdb/*.mmdb /torrents/config/geoip/
   fi
-  ln -sf /torrents/config/geoip/GeoLite2-ASN.mmdb /var/www/rutorrent/plugins/geoip2/torrents/configbase/GeoLite2-ASN.mmdb
-  ln -sf /torrents/config/geoip/GeoLite2-City.mmdb /var/www/rutorrent/plugins/geoip2/torrents/configbase/GeoLite2-City.mmdb
-  ln -sf /torrents/config/geoip/GeoLite2-Country.mmdb /var/www/rutorrent/plugins/geoip2/torrents/configbase/GeoLite2-Country.mmdb
+  mkdir -p /var/www/rutorrent/plugins/geoip2/database
+  ln -sf /torrents/config/geoip/GeoLite2-ASN.mmdb /var/www/rutorrent/plugins/geoip2/database/GeoLite2-ASN.mmdb
+  ln -sf /torrents/config/geoip/GeoLite2-City.mmdb /var/www/rutorrent/plugins/geoip2/database/GeoLite2-City.mmdb
+  ln -sf /torrents/config/geoip/GeoLite2-Country.mmdb /var/www/rutorrent/plugins/geoip2/database/GeoLite2-Country.mmdb
 else
   echo "  WARNING: geoip2 plugin does not exist"
 fi

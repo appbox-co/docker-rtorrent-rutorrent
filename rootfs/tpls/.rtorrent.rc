@@ -47,17 +47,17 @@ protocol.encryption.set = allow_incoming,try_outgoing,enable_retry
 # Set the umask for this process, which is applied to all files created by the program
 system.umask.set = 0022
 
-# Add a preferred filename encoding to the list
-encoding.add = UTF-8
+# rTorrent 0.16.22 uses UTF-8; encoding.add was removed upstream.
 
-# Watch a directory for new torrents, and stop those that have been deleted
-directory.watch.added = (cat,(cfg.watch)), load.start
-schedule2 = untied_directory, 5, 5, (cat,"stop_untied=",(cfg.watch),"*.torrent")
+# ruTorrent AutoWatch imports /torrents/watch and removes the source .torrent files.
+# Do not also load them with directory.watch.added or stop them with stop_untied:
+# the competing importers leave downloads tied to files AutoWatch has removed.
 
 # Close torrents when diskspace is low
-schedule2 = monitor_diskspace, 15, 60, ((close_low_diskspace,1000M))
+schedule = monitor_diskspace, 15, 60, ((close_low_diskspace,1000M))
 
-# Move finished (no need Autotools/Automove plugin on ruTorrent)
+# Move finished (handled by Autotools plugin in ruTorrent)
+# If you prefer native rTorrent move, uncomment below and disable Autotools move in ruTorrent:
 # method.insert = d.get_finished_dir, simple, "cat=$cfg.download_complete=,$d.custom1="
 # method.insert = d.move_to_complete, simple, "d.directory.set=$argument.1=; execute=mkdir,-p,$argument.1=; execute=mv,-u,$argument.0=,$argument.1=; d.save_full_session="
 # method.set_key = event.download.finished,move_complete,"d.move_to_complete=$d.data_path=,$d.get_finished_dir="

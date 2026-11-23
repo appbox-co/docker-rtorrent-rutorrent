@@ -15,16 +15,18 @@ cat > /etc/services.d/php-fpm/run <<EOL
 #!/usr/bin/execlineb -P
 with-contenv
 s6-setuidgid ${PUID}:${PGID}
-php-fpm84 -F
+php-fpm85 -F
 EOL
 chmod +x /etc/services.d/php-fpm/run
 
 mkdir -p /etc/services.d/rtorrent
+# SIGINT requests rTorrent's normal shutdown and final session save.
+printf 'SIGINT\n' > /etc/services.d/rtorrent/down-signal
 cat > /etc/services.d/rtorrent/run <<EOL
 #!/usr/bin/execlineb -P
 with-contenv
-/bin/export HOME /torrents/config/rtorrent
-/bin/export PWD /torrents/config/rtorrent
+/usr/bin/export HOME /torrents/config/rtorrent
+/usr/bin/export PWD /torrents/config/rtorrent
 s6-setuidgid ${PUID}:${PGID}
 EOL
 if [ -z "${WAN_IP}" ]; then

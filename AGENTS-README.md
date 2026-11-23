@@ -1,0 +1,402 @@
+---
+description: 
+alwaysApply: false
+---
+
+# AGENTS.md
+
+Guidance for AI agents working in this repository.
+
+This repo is not a plain upstream mirror. It is an Appbox-oriented fork of
+`crazy-max/docker-rtorrent-rutorrent` with compatibility work for existing Appbox
+users, additional plugins, and a custom mobile ruTorrent UI.
+
+## Current Image State
+
+- Registry tag: `repo.cylo.net/rutorrent:5.3.15.4-0.16.24`; `5.3.15.5-0.16.24` is the
+  PHP security release, built with `-f Dockerfile.php-security`, and
+  `5.3.15.6-0.16.24` the basic-auth hardening release, built with
+  `-f Dockerfile.auth-fail-closed`. `5.3.15.7-0.16.24` is the next PHP
+  security release (`-f Dockerfile.php-security`) and `5.3.15.8-0.16.24` the
+  autodl theme stylesheet release (`-f Dockerfile.autodl-themes`), followed by
+  `5.3.15.9-0.16.24` (same Dockerfile); see below.
+- Base runtime: `crazymax/alpine-s6:3.24-3.2.3.0`
+- rTorrent / libtorrent: `0.16.24`
+- ruTorrent: `5.3.15` (upstream commit `fe468360f94b02def11bbf67b16316bbe8081380`, catalogue `5.3.15.4`)
+- PHP: `8.5`
+- Entrypoint: `ENTRYPOINT ["/init"]` through s6-overlay.
+- Production architecture: `linux/amd64`.
+
+## Appbox Invariants
+
+Preserve these unless the user explicitly asks for a breaking change:
+
+- Runtime state lives under `/torrents`, not `/data` or `/downloads`.
+- Completed downloads: `/torrents/completed`.
+- Active downloads: `/torrents/downloading`.
+- Watch directory: `/torrents/watch`.
+- rTorrent config/session/logs: `/torrents/config/rtorrent`.
+- ruTorrent config/user state: `/torrents/config/rutorrent`.
+- autodl config: `/torrents/config/autodl`.
+- Basic-auth files: `/passwd/rpc.htpasswd`, `/passwd/rutorrent.htpasswd`, `/passwd/webdav.htpasswd`.
+- The web UI should be exposed to Appbox through HTTP port `80`; do not add a public HTTP port section to `appbox.yml`.
+- `appbox.yml` intentionally relies on store/app-version rows for many runtime details; do not assume missing sections are accidental.
+
+The Dockerfile still has `VOLUME [ "/data", "/downloads", "/passwd" ]` from upstream history,
+but the actual Appbox runtime uses `/torrents` and `/passwd`.
+
+## Lifecycle Scripts
+
+The image uses s6-overlay. Do not replace it with a simple bash entrypoint.
+
+Key boot scripts:
+
+- `rootfs/etc/cont-init.d/00-set-passwd.sh` sets initial basic auth from `USERNAME` / `PASSWORD` or `RUTORRENT_USER` / `RUTORRENT_PASSWORD`.
+- `rootfs/etc/cont-init.d/03-config.sh` renders nginx, PHP, rTorrent, and ruTorrent config; creates `/torrents` directories; enables/configures plugins; applies autodl compatibility patches on the live plugin tree.
+- `rootfs/etc/cont-init.d/05-appbox.sh` handles Appbox upgrade migrations, autodl migration, user settings migration, `irssi` and `rtcheck` services, `filemanager-share`, and marks the installed callback as pending on first boot.
+- `rootfs/etc/services.d/appbox-callback/run` sends the pending installed callback through `rootfs/usr/local/bin/appbox-installed-callback`.
+- `rootfs/moduser.sh` is required by Appbox and updates basic auth for ruTorrent, XML-RPC, and WebDAV.
+- `rootfs/usr/local/lib/rtorrent-web-auth.sh` is the single shared helper for writing htpasswd files.
+
+If you touch password behavior, update the helper rather than duplicating htpasswd logic.
+
+Basic auth is never switched off. Since 5.3.15.6, `03-config.sh` only logs an
+error for an empty or missing htpasswd file; nginx keeps `auth_basic`, so such a
+file refuses every login. Do not restore upstream's "empty file disables auth"
+behaviour.
+
+## Callback Behavior
+
+When `INSTANCE_ID` is set, `05-appbox.sh` creates `/etc/appbox_callback_pending`
+on first boot (when `/etc/app_configured` is absent). The `appbox-callback` s6
+service then posts once to:
+
+```text
+https://api.cylo.net/v1/apps/installed/${INSTANCE_ID}
+```
+
+The callback runs after cont-init, so nginx, PHP-FPM and rTorrent start whether
+or not it succeeds. Network errors, 408, 429 and 5xx are retried with backoff
+(5s doubling to a 60s cap). Each attempt times out after 120s. Any other status
+is logged and not retried: the API rejects a callback for an instance that is no
+longer waiting for one, and an endless retry loop in cont-init used to keep the
+whole app down. `INSTANCE_ID` can include `?callback_token=...`; the helper logs
+only the numeric ID, and passes the URL and token to curl as a config file on
+stdin so they are not on curl's command line.
+
+Supported controls:
+
+- `SKIP_APPBOX_CALLBACK=1` for local tests.
+- `CALLBACK_TOKEN`, sent as the `X-Cylo-Callback-Token` header that cylo-api
+  reads. (cylo-api treats a Bearer token as a user session, so the older Bearer
+  header never authenticated the callback.)
+- `APPBOX_CALLBACK_BASE` for alternate callback base URLs.
+- `APPBOX_CALLBACK_RETRY_DELAY` and `APPBOX_CALLBACK_MAX_RETRY_DELAY` for the
+  first retry delay and the cap, in seconds (tests). Non-numeric or zero values
+  fall back to 5 and 60.
+
+`scripts/test-installed-callback.sh` covers the retry, cap, rejection, header
+and logging cases against a local mock API.
+
+Keep the callback path working; Appbox installs remain in "installing" until it succeeds.
+
+## Bundled Plugins And Patches
+
+The Dockerfile builds or vendors:
+
+- `mobile/` into `/var/www/rutorrent/plugins/mobile`.
+- `geoip2-rutorrent/` into `/var/www/rutorrent/plugins/geoip2`.
+- `autodl-irssi` into `/home/rtorrent`.
+- `autodl-rutorrent` into `/var/www/rutorrent/plugins/autodl-rutorrent`.
+- `filemanager`, `filemanager-media`, and `filemanager-share`.
+- `ratiocolor` (Gyran, pinned commit), patched by `scripts/patch-ratiocolor.py` to colour
+  the ratio text and to recolour after ruTorrent 5's in-place `syncDOM()` cell updates.
+- `appbox` ruTorrent theme into `/var/www/rutorrent/plugins/theme/themes/appbox`.
+- `mktorrent` for the ruTorrent `create` plugin.
+- DumpTorrent tools for the ruTorrent dump plugin.
+
+`scripts/patch-autodl-rutorrent-html5.py` is applied at build time and by `03-config.sh`
+on every boot. This is intentional so persisted custom plugin overrides also get patched.
+Do not make autodl fixes only in the generated image tree.
+
+autodl-rutorrent loads `css/<theme>.min.css` (the active theme's directory name in
+lower case) and ships stylesheets only for Standard, Acid, Blue, Dark, Excel and
+Oblivion. Since 5.3.15.8 the patch script also writes `club-quickbox`, `darkbetter`,
+`materialdesign` and `oblivionblue` stylesheets (`THEME_STYLESHEETS`): the matching
+bundled colours plus a layout that keeps the Filters window on screen. Each generated
+file starts with `GENERATED_MARKER`; the script rewrites only files that start with it,
+so a stylesheet shipped by a custom plugin is left alone. Add a theme there when the
+image gains one that autodl has no stylesheet for. Since 5.3.15.9 the same layout is
+also appended to autodl's own six stylesheets (`BUNDLED_STYLESHEETS`), between
+`LAYOUT_BEGIN` and `LAYOUT_END`, because their fixed 350px Filters window overflows on
+ruTorrent 5. The block is replaced on every run, and the generated stylesheets copy
+the bundled colours without it.
+
+`rootfs/usr/local/bin/patch-rutorrent-dht-port.py` patches the upstream PHP and
+JavaScript 0.16 command maps at build time. Keep both maps aligned: ruTorrent's
+DHT setter must call `dht.override_port.set`; `dht.port` remains the live getter.
+The assigned UDP port is still configured by `RT_DHT_PORT` at startup. New
+catalogue versions must import the manifest's zero socket-buffer defaults.
+
+`scripts/patch-rutorrent-cli-arguments.py` replaces the web INI check with a
+probe of `Utility::getPHP()` using `php/cli-arguments.php`. PHP 8.5 reports the
+directive as off even when CLI arguments work. Keep the web directive off; the
+release gate tests plugin initialization, argument handling and failure cases.
+
+## Mobile Plugin
+
+The mobile plugin is a first-class part of this image.
+
+Important files:
+
+- `mobile/mobile.html`
+- `mobile/init.js`
+- `mobile/mobile.css`
+- `mobile/styles/appbox-input.css`
+- `mobile/appbox.css`
+
+`mobile/appbox.css` is generated with Tailwind v4:
+
+```bash
+cd mobile
+npm install
+npm run build:css
+```
+
+Always rebuild and commit/check in `mobile/appbox.css` after changing Tailwind source,
+HTML utility classes, or JS-rendered utility classes.
+
+The mobile plugin depends on ruTorrent `httprpc` and expects `_getdir` for server-side
+directory browsing. It explicitly keeps `create` and `_task` enabled so the mobile
+create-torrent flow works.
+
+## Web And Network Behavior
+
+nginx config currently provides:
+
+- ruTorrent on `RUTORRENT_PORT`, default `80`.
+- XML-RPC at `/RPC2` in the ruTorrent server block.
+- separate XML-RPC listener on `XMLRPC_PORT`, default `8000`.
+- WebDAV on `WEBDAV_PORT`, default `9000`, rooted at `/torrents/completed`.
+- localhost health listeners on `XMLRPC_PORT + 1`, `RUTORRENT_PORT + 1`, and `WEBDAV_PORT + 1`.
+
+Only `80/tcp` is exposed in the Dockerfile for Appbox. Treat XML-RPC/WebDAV listeners as
+internal unless the user specifically asks to expose them elsewhere.
+
+## Upgrade Compatibility
+
+`05-appbox.sh` contains compatibility behavior for old Appbox installs. It:
+
+- detects old Appbox rTorrent config.
+- backs up old `.rtorrent.rc` files.
+- keeps `session` and `.session` paths compatible without moving session data.
+- migrates old autodl config into `/torrents/config/autodl`.
+- migrates old ruTorrent user settings from `users/` to `share/users/`.
+- restores default `theme.dat`, `autotools.dat`, and `WebUISettings.dat` when missing or invalid.
+
+Be very cautious when editing this script. Existing users can have long-lived persisted
+state and old session files.
+
+Normal version upgrades preserve the current-layout `.rtorrent.rc` and selected theme,
+even though the replacement container has no `/etc/app_configured` marker. Only
+configs identified by the existing legacy `Appbox ruTorrent` marker are replaced by
+the older layout-conversion path. The 0.16.22 compatibility helper backs up the
+retained config before removing the obsolete stock UTF-8 directive.
+
+## PHP security release (5.3.15.5)
+
+`Dockerfile.php-security` builds catalogue `5.3.15.5` / tag `5.3.15.5-0.16.24`
+from the immutable 5.3.15.4 image digest and upgrades only its php85 packages
+to 8.5.12-r0, for the PHP security release of 21 October 2026. Alpine's v3.24
+index did not have 8.5.12 yet, so the packages are our own build of Alpine's
+community/php85 APKBUILD, signed with our own key and published as the
+package artifact image `repo.cylo.net/php-artifacts:php85-8.5.12-r0-alpine3.24`
+(pinned by digest in `PHP85_ARTIFACT`; recipe, gate and provenance in
+`release/php85-artifact/`). The upgrade reads only that repository, with no
+network and its own key directory. `Dockerfile` is unchanged and still
+describes the full 5.3.15.4 build; do not use it for 5.3.15.5.
+
+Release gate: `release/verify-image.sh <image>` (exact image as its only
+argument). It checks that the image is the 5.3.15.4 layers plus one layer, that
+only php85 packages changed and every one is the artifact's build (installed
+package checksums against the artifact APKINDEX), the PHP floor, identical PHP
+modules and config,
+multipart uploads through the PHP CLI server and through nginx + php-fpm,
+`nginx -t` and `php-fpm85 -t`, a .torrent upload, `/no-auth/share.php`, a fresh
+install, an upgrade from 5.3.15.4 on the same volumes, and that the registry
+definitively lacks the release tag. Build from a `git archive` of the pushed
+commit in a fresh `mktemp` directory under `/home/appbox/builds` on the
+dedicated builder:
+
+```bash
+docker build --pull --no-cache --platform linux/amd64 \
+  -f Dockerfile.php-security -t repo.cylo.net/rutorrent:5.3.15.5-0.16.24 . && \
+  release/verify-image.sh repo.cylo.net/rutorrent:5.3.15.5-0.16.24 && \
+  docker push repo.cylo.net/rutorrent:5.3.15.5-0.16.24
+```
+
+## Basic-auth hardening release (5.3.15.6)
+
+`Dockerfile.auth-fail-closed` builds catalogue `5.3.15.6` / tag
+`5.3.15.6-0.16.24` from the immutable 5.3.15.5 image digest and replaces only
+`/etc/cont-init.d/03-config.sh`, `/etc/cont-init.d/025-set-passwd.sh` and
+`/usr/local/bin/appbox-installed-callback` from `rootfs/`. Release gate:
+`release/verify-auth-image.sh <image>` (filesystem identical to 5.3.15.5 except
+those files, callback helper tests with a 5.3.15.5 control, fresh install,
+restart, empty and missing password files, `/moduser.sh` recovery, upgrade
+from 5.3.15.5 on the same volumes, registry absence). Details and results in
+`RELEASE-5.3.15.6.md`.
+
+```bash
+docker build --pull --no-cache --platform linux/amd64 \
+  -f Dockerfile.auth-fail-closed -t repo.cylo.net/rutorrent:5.3.15.6-0.16.24 . && \
+  release/verify-auth-image.sh repo.cylo.net/rutorrent:5.3.15.6-0.16.24 && \
+  docker push repo.cylo.net/rutorrent:5.3.15.6-0.16.24
+```
+
+## autodl theme stylesheets (5.3.15.8)
+
+`Dockerfile.autodl-themes` builds catalogue `5.3.15.8` / tag `5.3.15.8-0.16.24`
+from the immutable 5.3.15.7 image digest and replaces only
+`/usr/local/bin/patch-autodl-rutorrent-html5.py`, then runs it, which adds the four
+generated stylesheets to `plugins/autodl-rutorrent/css/`. Release gate:
+`release/verify-autodl-image.sh <image>` (filesystem identical to 5.3.15.7 except the
+script and its four stylesheets, script idempotency and foreign-file checks, the
+stylesheets served through nginx with the login on a fresh install and after a
+restart, a custom autodl plugin patched on start, upgrade from 5.3.15.7 with
+club-QuickBox selected and a 404 control on 5.3.15.7, registry absence). Details in
+`RELEASE-5.3.15.8.md`.
+
+5.3.15.9 uses the same Dockerfile and gate, now based on the 5.3.15.8 digest: the
+script also appends the layout to autodl's six own stylesheets, and the gate expects
+exactly those six files and the script to differ from 5.3.15.8, with the four generated
+stylesheets unchanged and an upgrade from 5.3.15.8 with Oblivion selected. Details in
+`RELEASE-5.3.15.9.md`.
+
+```bash
+docker build --builder default --pull --no-cache --platform linux/amd64 \
+  -f Dockerfile.autodl-themes -t repo.cylo.net/rutorrent:5.3.15.9-0.16.24 . && \
+  release/verify-autodl-image.sh repo.cylo.net/rutorrent:5.3.15.9-0.16.24 && \
+  docker push repo.cylo.net/rutorrent:5.3.15.9-0.16.24
+```
+
+## Build And Release
+
+Remote builder currently used by the user:
+
+```bash
+ssh appbox@builder.tester2.appboxes.co -p12246 \
+  -i /Users/rid/.ssh/appbox_ubuntuvps2_webtop \
+  -o IdentitiesOnly=yes
+```
+
+Typical sync/build/push command:
+
+```bash
+tar -C "/Users/rid/Development/Current/docker-rtorrent-rutorrent" \
+  --exclude='.git' \
+  --exclude='mobile/node_modules' \
+  --exclude='rootfs/usr/local/bin/__pycache__' \
+  -czf - . | \
+ssh appbox@builder.tester2.appboxes.co -p12246 \
+  -i /Users/rid/.ssh/appbox_ubuntuvps2_webtop \
+  -o IdentitiesOnly=yes \
+  "mkdir -p /home/appbox/builds/docker-rtorrent-rutorrent && \
+   tar xzf - -C /home/appbox/builds/docker-rtorrent-rutorrent && \
+   cd /home/appbox/builds/docker-rtorrent-rutorrent && \
+   docker build --platform linux/amd64 -t repo.cylo.net/rutorrent:5.3.15.4-0.16.24 . && \
+   docker push repo.cylo.net/rutorrent:5.3.15.4-0.16.24"
+```
+
+Only build, push, or commit when the user explicitly asks. Do not force-push or reset.
+
+## Local Smoke Test
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -e USERNAME=admin \
+  -e PASSWORD='TestPass123!' \
+  -e INSTANCE_ID=test \
+  -e SKIP_APPBOX_CALLBACK=1 \
+  -p 8080:80 \
+  -v rutorrent-torrents:/torrents \
+  -v rutorrent-passwd:/passwd \
+  repo.cylo.net/rutorrent:5.3.15.4-0.16.24
+```
+
+Open `http://localhost:8080/`. Force mobile mode with `http://localhost:8080/index.html?mobile=1`.
+
+## Before Finishing Changes
+
+- Run `npm run build:css` in `mobile/` when mobile styles changed.
+- Rebuild `rootfs/var/www/rutorrent/plugins/theme/themes/appbox/style.css` and
+  `style-min.css` when the Appbox theme Tailwind source changes.
+- Run `node --check mobile/init.js` when mobile JS changed.
+- Use `ReadLints` on changed files after substantive edits.
+- Keep edits scoped; do not revert unrelated dirty files.
+- Update `README.md` and this file when runtime paths, lifecycle scripts, bundled plugins,
+  or build/release steps change.
+
+## Watch-folder compatibility (5.3.12-0.16.10-1)
+
+ruTorrent AutoWatch owns the default /torrents/watch import path. The image no
+longer registers a competing native directory watcher or a stop_untied timer.
+AutoWatch removes source .torrent files after importing them, so those native
+rules could immediately pause the downloads they had loaded.
+
+The default AutoWatch interval is five minutes, so imports can take up to five
+minutes to appear.
+
+For containers that are already configured, startup removes only the two former
+stock rules from the retained .rtorrent.rc and saves a content-addressed
+.pre-autowatch backup before modifying it.
+Other rules and settings are left intact by this migration. It does not change
+torrent states or remove downloaded data; previously stopped torrents can be
+started after updating. Fresh install, restart, configured-state migration and
+upgrade checks live in scripts/release-gate.py.
+
+## Finished time compatibility
+
+Release `5.3.14-0.16.23-2` backports the ruTorrent seedingtime hash-done fix.
+That release replaced the chained condition with
+nested branches supported by rTorrent 0.16. Newly created and already-complete
+torrents receive a Finished time; existing times are preserved. The build refuses
+an unexpected plugin layout. The release gate exercises Create Torrent,
+incomplete torrents, timestamp preservation, restart, and the previous image's
+persistent volume. Custom replacement seedingtime plugins remain user-managed.
+
+## Upstream snapshot: 5.3.15.1
+
+The catalogue version `5.3.15.1` uses ruTorrent master at `fe468360f94b02def11bbf67b16316bbe8081380`
+(merged PR #3329), with rTorrent/libtorrent 0.16.23. The web UI reports the
+upstream version 5.3.15. The local seedingtime backport has been removed because
+the pinned upstream source contains the fix. Existing Appbox packaging, one app
+slot, and downgrade support are retained.
+
+## rTorrent and libtorrent 0.16.24
+
+Catalogue `5.3.15.2` uses the matching upstream rTorrent and libtorrent
+`v0.16.24` tags. The pinned ruTorrent 5.3.15 revision, Appbox layout and
+resource settings are unchanged. The 0.16.24 `ip%device` bind syntax removal
+does not affect the managed Appbox configuration; test persisted custom
+configuration and the DHT/RPC behavior during release validation.
+
+## Ratio colours (5.3.15.3)
+
+Catalogue `5.3.15.3` restores the `ratiocolor` plugin from earlier Appbox images.
+The ratio column text runs from red at 0 through orange and green to blue at 30
+and above. Upstream only recolours when rows are redrawn, so the image adds a
+`syncDOM()` hook to update visible rows when their ratio changes. Everything else
+matches `5.3.15.2`.
+
+## Installed callback (5.3.15.4)
+
+Catalogue `5.3.15.4` stops the Appbox installed callback from blocking startup.
+`05-appbox.sh` used to retry it forever inside cont-init, so a rejected callback
+(for example a 401 after a migration had already cleared the instance's token)
+left nginx, PHP-FPM and rTorrent stopped and the app returned 502. The callback
+now runs from the `appbox-callback` s6 service after the other services start,
+retries only network errors, 408, 429 and 5xx, and sends `CALLBACK_TOKEN` as
+`X-Cylo-Callback-Token`. `scripts/session-release-gate.py` checks that the app is
+healthy and sends exactly one callback when the API rejects it. rTorrent,
+libtorrent, ruTorrent and plugins are unchanged from `5.3.15.3`.

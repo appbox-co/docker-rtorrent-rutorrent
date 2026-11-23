@@ -134,8 +134,8 @@ def convert_params_to_native(params):
     return tuple(cparams)
 
 def is_private(url):
-    pattern1 = '(http|https|udp)://[a-z0-9\.-]+\.[a-z]{2,13}((:[0-9]{2,5})|)/.*an.*\?.+=.+'
-    pattern2 = '(http|https|udp)://[a-z0-9\.-]+\.[a-z]{2,13}((:[0-9]{2,5})|)/.*[0-9a-zA-Z]{8,32}/an.*'
+    pattern1 = r'(http|https|udp)://[a-z0-9\.-]+\.[a-z]{2,13}((:[0-9]{2,5})|)/.*an.*\?.+=.+'
+    pattern2 = r'(http|https|udp)://[a-z0-9\.-]+\.[a-z]{2,13}((:[0-9]{2,5})|)/.*[0-9a-zA-Z]{8,32}/an.*'
     result = True if re.match(pattern1, url) or re.match(pattern2, url) else False
     return result
 
