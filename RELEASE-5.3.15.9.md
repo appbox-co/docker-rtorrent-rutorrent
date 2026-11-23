@@ -95,4 +95,10 @@ absent before and after the checks, and the first push succeeded.
   (OCI index: linux/amd64 `sha256:f14e84f55d79e072094cffa8efdd6b231de0271b720be170de3757461afd1183` plus attestation)
 
 Catalogue: cylo-api `migrations/20261123_rutorrent_5_3_15_9.sql` (admin-only,
-not default) and `..._publish.sql`.
+row 1617) applied 2026-11-23 16:47 UTC. Canary on grant from 17:31 UTC: a
+fresh install through the dashboard called back installed, and with 80
+filters through the Appbox domain and proxy the Filters window fit with
+Oblivion, Blue and club-QuickBox. `..._publish.sql` applied 2026-11-23
+19:52 UTC, so 5.3.15.9 is the default and instances on 5.3.15.8 are offered
+it (appbox-co/cylo-api#282). The canary was uninstalled afterwards. No fleet
+update run.
