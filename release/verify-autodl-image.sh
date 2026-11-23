@@ -1,12 +1,14 @@
 #!/bin/sh
-# Release gate for ruTorrent 5.3.15.8 (Dockerfile.autodl-themes): the 5.3.15.7
-# image with an updated patch-autodl-rutorrent-html5.py that generates autodl
-# stylesheets for club-QuickBox, DarkBetter, MaterialDesign and OblivionBlue,
-# so the Filters window stays on screen with a long filter list.
+# Release gate for ruTorrent 5.3.15.9 (Dockerfile.autodl-themes): the 5.3.15.8
+# image with an updated patch-autodl-rutorrent-html5.py that also appends the
+# Filters layout to autodl's own stylesheets (Acid, Blue, Dark, Excel,
+# Oblivion, Standard), so the filter settings stay inside the window. 5.3.15.8
+# generated stylesheets for club-QuickBox, DarkBetter, MaterialDesign and
+# OblivionBlue; those must come out unchanged.
 #
 # Usage: release/verify-autodl-image.sh <image>
 #
-#   <image> is repo.cylo.net/rutorrent:5.3.15.8-0.16.24 for a release, or a
+#   <image> is repo.cylo.net/rutorrent:5.3.15.9-0.16.24 for a release, or a
 #   local/rutorrent-trial:<tag> image for a trial run.
 #
 # Exits 0 only when the local image passes every check and the authenticated
@@ -17,15 +19,17 @@ set -eu
 LC_ALL=C
 export LC_ALL
 
-RELEASE_REF="repo.cylo.net/rutorrent:5.3.15.8-0.16.24"
-RELEASE_VERSION="5.3.15.8"
-BASE_NAME="5.3.15.7"
-BASE_REF="repo.cylo.net/rutorrent@sha256:db1a64429462205a3bc41833e4886fc4205945b5115a907ae6bf303e087b9df6"
+RELEASE_REF="repo.cylo.net/rutorrent:5.3.15.9-0.16.24"
+RELEASE_VERSION="5.3.15.9"
+BASE_NAME="5.3.15.8"
+BASE_REF="repo.cylo.net/rutorrent@sha256:f2d00903ffce4c84bd500d9efc0b968c351695e3ea469be671af170e19c5ec88"
 RUTORRENT_REVISION="fe468360f94b02def11bbf67b16316bbe8081380"
 PHP_VERSION="8.5.13"
 PLUGIN="/var/www/rutorrent/plugins/autodl-rutorrent"
 PATCH_SCRIPT="/usr/local/bin/patch-autodl-rutorrent-html5.py"
 GENERATED="club-quickbox darkbetter materialdesign oblivionblue"
+BUNDLED="acid blue dark excel oblivion standard"
+LAYOUT_BEGIN="/* Appbox Filters layout (patch-autodl-rutorrent-html5.py): begin */"
 EXTRA_LAYERS=2
 HEALTH_TIMEOUT=900
 
@@ -169,7 +173,7 @@ start_app() {
 # The image's healthcheck passes about ten seconds before ruTorrent is
 # usable: .rtlocal.rc schedules ruTorrent's php/initplugins.php 10 s after
 # rTorrent starts (schedule init_plugins), and addtorrent.php reports
-# "Failed" until it has run (5.3.15.6 and 5.3.15.7 behave the same; see
+# "Failed" until it has run (5.3.15.6 to 5.3.15.8 behave the same; see
 # release/verify-image.sh). Wait until /RPC2 answers with the test login, the
 # ratio plugin's groups (group.rat_0.*, created by initplugins.php) exist and
 # no initplugins.php process is still running, before any check runs.
@@ -244,7 +248,7 @@ volume_state() {
         for f in *.torrent; do [ -f "$f" ] && echo "$f"; done'
 }
 
-THEME_DAT='O:6:"rTheme":3:{s:4:"hash";s:9:"theme.dat";s:8:"modified";b:0;s:7:"current";s:13:"club-QuickBox";}'
+THEME_DAT='O:6:"rTheme":3:{s:4:"hash";s:9:"theme.dat";s:8:"modified";b:0;s:7:"current";s:8:"Oblivion";}'
 
 echo "== Gate $run_id: $image_ref ($gate_mode)"
 grep -q "^  version: \"$RELEASE_VERSION\"\$" "$repo_dir/appbox.yml" \
@@ -276,7 +280,7 @@ head -n "$base_layer_count" "$work_dir/image-layers" | cmp -s - "$work_dir/base-
 [ "$extra_layers" -eq "$EXTRA_LAYERS" ] || fail "image adds $extra_layers layer(s) to $BASE_NAME; expected $EXTRA_LAYERS"
 echo "$BASE_NAME layers ($base_layer_count) plus $extra_layers; labels, entrypoint, healthcheck and environment unchanged"
 
-echo "== Filesystem: only the patch script and the generated stylesheets differ from $BASE_NAME"
+echo "== Filesystem: only the patch script and autodl's six stylesheets differ from $BASE_NAME"
 # Every path's type, mode, owner and link target, and every regular file's
 # SHA-256. Docker bind-mounts the three /etc files below per container.
 fs_listing='find / -xdev \( -path /etc/hostname -o -path /etc/hosts -o -path /etc/resolv.conf \) -prune -o -printf "%y %m %u:%g %p -> %l\n" | sort; find / -xdev \( -path /etc/hostname -o -path /etc/hosts -o -path /etc/resolv.conf \) -prune -o -type f -exec sha256sum {} + | sort -k 2'
@@ -285,12 +289,14 @@ in_image "$image_ref" sh -c "$fs_listing" > "$work_dir/image-fs"
 [ "$(wc -l < "$work_dir/image-fs")" -gt 10000 ] || fail "filesystem listing looks incomplete"
 diff "$work_dir/base-fs" "$work_dir/image-fs" | sed -n 's/^> //p' | sort -k 2 > "$work_dir/fs-added" || true
 diff "$work_dir/base-fs" "$work_dir/image-fs" | sed -n 's/^< //p' | sort -k 2 > "$work_dir/fs-removed" || true
-# Expected stylesheets: the repository's script run on a copy of the 5.3.15.7 plugin.
+# Expected stylesheets: the repository's script run on a copy of the 5.3.15.8
+# plugin. The six bundled ones change; the four generated ones must not.
 docker run --rm --platform linux/amd64 --network none -v "$repo_dir/scripts:/gate-scripts:ro" --entrypoint sh "$BASE_REF" -c \
     "set -e; cp -a $PLUGIN /tmp/plugin; python3 /gate-scripts/patch-autodl-rutorrent-html5.py /tmp/plugin
-     for t in $GENERATED; do sha256sum /tmp/plugin/css/\$t.min.css; done" \
-    | sed "s#/tmp/plugin#$PLUGIN#" > "$work_dir/expected-css" || fail "could not run the repository script on the $BASE_NAME plugin"
-[ "$(wc -l < "$work_dir/expected-css")" -eq 4 ] || fail "the repository script did not write four stylesheets"
+     for t in $BUNDLED; do sha256sum /tmp/plugin/css/\$t.min.css; done
+     for t in $GENERATED; do cmp /tmp/plugin/css/\$t.min.css $PLUGIN/css/\$t.min.css; done" \
+    | sed "s#/tmp/plugin#$PLUGIN#" > "$work_dir/expected-css" || fail "could not run the repository script on the $BASE_NAME plugin, or it changed a generated stylesheet"
+[ "$(wc -l < "$work_dir/expected-css")" -eq 6 ] || fail "the repository script did not produce six bundled stylesheets"
 script_sum=$(sha256sum "$repo_dir/scripts/patch-autodl-rutorrent-html5.py" | awk '{print $1}')
 grep -qxF "$script_sum  $PATCH_SCRIPT" "$work_dir/image-fs" || fail "$PATCH_SCRIPT in the image is not scripts/patch-autodl-rutorrent-html5.py"
 base_script_entry=$(grep -E "^f [0-7]+ [^ ]+ $PATCH_SCRIPT -> \$" "$work_dir/base-fs") || fail "$PATCH_SCRIPT missing from $BASE_NAME"
@@ -298,13 +304,13 @@ grep -qxF "$base_script_entry" "$work_dir/image-fs" || fail "$PATCH_SCRIPT mode 
 {
     echo "$script_sum  $PATCH_SCRIPT"
     cat "$work_dir/expected-css"
-    for t in $GENERATED; do echo "f 644 nobody:nogroup $PLUGIN/css/$t.min.css -> "; done
 } | sort -k 2 > "$work_dir/fs-expected"
 cmp -s "$work_dir/fs-added" "$work_dir/fs-expected" \
     || { diff "$work_dir/fs-expected" "$work_dir/fs-added" >&2 || true; fail "unexpected filesystem additions or changes"; }
-[ "$(wc -l < "$work_dir/fs-removed")" -eq 1 ] && grep -q " $PATCH_SCRIPT\$" "$work_dir/fs-removed" \
+awk '{print $2}' "$work_dir/fs-removed" | sort > "$work_dir/fs-removed-paths"
+awk '{print $2}' "$work_dir/fs-expected" | sort | cmp -s - "$work_dir/fs-removed-paths" \
     || { cat "$work_dir/fs-removed" >&2; fail "unexpected filesystem removals"; }
-echo "$(wc -l < "$work_dir/image-fs") entries; only $PATCH_SCRIPT (identical to scripts/) and the four stylesheets (identical to the script's output, 0644 nobody:nogroup) differ"
+echo "$(wc -l < "$work_dir/image-fs") entries; only $PATCH_SCRIPT (identical to scripts/) and the six bundled stylesheets (identical to the script's output; mode and owner unchanged) differ; the four generated stylesheets are unchanged"
 
 echo "== Patch script"
 in_image "$image_ref" python3 -c "import ast; ast.parse(open('$PATCH_SCRIPT').read())" || fail "patch script does not parse"
@@ -319,10 +325,15 @@ in_image "$image_ref" sh -c "set -e
     python3 $PATCH_SCRIPT /tmp/p
     test \"\$(cat /tmp/p/css/oblivionblue.min.css)\" = '/* custom */'
     cmp /tmp/p/css/darkbetter.min.css $PLUGIN/css/darkbetter.min.css
+    sed -i 's/min(420px/min(999px/' /tmp/p/css/dark.min.css
+    python3 -c \"import sys; p='/tmp/p/css/acid.min.css'; t=open(p).read(); open(p,'w').write(t[:t.index('/* Appbox Filters layout: end */')])\"
+    python3 $PATCH_SCRIPT /tmp/p
+    cmp /tmp/p/css/dark.min.css $PLUGIN/css/dark.min.css
+    cmp /tmp/p/css/acid.min.css $PLUGIN/css/acid.min.css
     rm -r /tmp/p/css
     python3 $PATCH_SCRIPT /tmp/p
-    test ! -e /tmp/p/css" || fail "patch script is not idempotent, overwrote a foreign stylesheet or failed without a css directory"
-echo "second run changes nothing; a stylesheet it did not write is kept; a deleted one comes back; no css directory is fine"
+    test ! -e /tmp/p/css" || fail "patch script is not idempotent, overwrote a foreign stylesheet, did not repair a layout block or failed without a css directory"
+echo "second run changes nothing; a stylesheet it did not write is kept; a deleted one comes back; an edited or truncated layout block is repaired; no css directory is fine"
 
 PASSWORD=$(od -An -N18 -tx1 /dev/urandom | tr -d ' \n')
 RUTORRENT_PASSWORD=$PASSWORD
@@ -343,23 +354,27 @@ step "login checks after restart failed" auth_check "$run_id-fresh" login
 step "runtime checks after restart failed" runtime_check "$run_id-fresh" check "$PHP_VERSION" "$fresh_hash"
 step "stylesheets are not served after restart" theme_check "$run_id-fresh"
 
-echo "== Custom autodl-rutorrent plugin without the stylesheets"
+echo "== Custom autodl-rutorrent plugin without the Appbox stylesheets"
 # 03-config.sh copies /torrents/config/rutorrent/plugins/<plugin> over the
-# image's copy and then runs the patch script on it. A custom stylesheet for
-# one of the themes must survive; the other three must be generated.
+# image's copy and then runs the patch script on it. The custom copy has
+# autodl's stylesheets without the layout block and none of the generated
+# ones. A custom stylesheet for one theme must survive; the other three must
+# be generated and the six bundled ones must get the block.
 docker exec "$run_id-fresh" sh -c "set -e
     cp -a $PLUGIN /torrents/config/rutorrent/plugins/autodl-rutorrent
     cd /torrents/config/rutorrent/plugins/autodl-rutorrent/css
     rm club-quickbox.min.css darkbetter.min.css materialdesign.min.css oblivionblue.min.css
+    for t in $BUNDLED; do python3 -c \"import sys; p=sys.argv[1]; t=open(p).read(); open(p,'w').write(t[:t.index('/* Appbox Filters layout (')])\" \$t.min.css; ! grep -q 'Appbox Filters layout' \$t.min.css; done
     printf '/* custom */\n' > materialdesign.min.css
     chown -R rtorrent:rtorrent /torrents/config/rutorrent/plugins/autodl-rutorrent"
 docker restart --time 30 "$run_id-fresh" >/dev/null
 wait_healthy "$run_id-fresh"; wait_rpc "$run_id-fresh"
 docker exec "$run_id-fresh" sh -c "set -e
     test \"\$(cat $PLUGIN/css/materialdesign.min.css)\" = '/* custom */'
-    for t in club-quickbox darkbetter oblivionblue; do head -n 1 $PLUGIN/css/\$t.min.css | grep -q '^/\* Generated by Appbox'; done" \
-    || fail "the custom plugin did not get the stylesheets, or its own stylesheet was replaced"
-echo "custom plugin patched on start; its own materialdesign.min.css kept"
+    for t in club-quickbox darkbetter oblivionblue; do head -n 1 $PLUGIN/css/\$t.min.css | grep -q '^/\* Generated by Appbox'; done
+    for t in $BUNDLED; do test \"\$(grep -c 'Appbox Filters layout (patch' $PLUGIN/css/\$t.min.css)\" = 1; done" \
+    || fail "the custom plugin did not get the stylesheets and layout, or its own stylesheet was replaced"
+echo "custom plugin patched on start: layout appended to the six bundled stylesheets, three generated, its own materialdesign.min.css kept"
 # A restart keeps the container's copy of the custom plugin; re-creating the
 # container (as an Appbox update does) brings back the image's plugin.
 docker exec "$run_id-fresh" rm -rf /torrents/config/rutorrent/plugins/autodl-rutorrent
@@ -368,7 +383,7 @@ start_app "$run_id-recreated" "$image_ref" "$run_id-fresh-torrents" "$run_id-fre
 step "stylesheets are not served after removing the custom plugin and re-creating the container" theme_check "$run_id-recreated"
 docker rm -fv "$run_id-recreated" >/dev/null
 
-echo "== Upgrade from $BASE_NAME with the same /torrents and /passwd (club-QuickBox selected)"
+echo "== Upgrade from $BASE_NAME with the same /torrents and /passwd (Oblivion selected)"
 new_volume "$run_id-up-torrents"
 new_volume "$run_id-up-passwd"
 start_app "$run_id-old" "$BASE_REF" "$run_id-up-torrents" "$run_id-up-passwd"
@@ -382,14 +397,15 @@ printf '%s' "$THEME_DAT" | docker exec -i -u rtorrent "$run_id-old" sh -c 'cat >
 docker exec -u rtorrent "$run_id-old" sh -c 'for i in 1 2 3 4 5; do printf "\n[filter Gate filter %s]\nenabled = false\nmatch-releases = *gate%s*\n" "$i" "$i"; done >> /torrents/config/autodl/autodl.cfg'
 status=$(docker exec -e USERNAME=releasegate -e PASSWORD "$run_id-old" python3 -c '
 import base64, os, urllib.request, urllib.error
-r = urllib.request.Request("http://127.0.0.1/plugins/autodl-rutorrent/css/club-quickbox.min.css")
+r = urllib.request.Request("http://127.0.0.1/plugins/autodl-rutorrent/css/oblivion.min.css")
 r.add_header("Authorization", "Basic " + base64.b64encode((os.environ["USERNAME"] + ":" + os.environ["PASSWORD"]).encode()).decode())
 try:
-    print(urllib.request.urlopen(r, timeout=60).status)
+    body = urllib.request.urlopen(r, timeout=60).read()
+    print("200", b"Appbox Filters layout" in body, b"#autodl-filters{width:600px;height:350px}" in body)
 except urllib.error.HTTPError as e:
     print(e.code)')
-[ "$status" = 404 ] || fail "control: $BASE_NAME served club-quickbox.min.css (HTTP $status); the gate cannot show the fix"
-echo "control: $BASE_NAME returns 404 for club-quickbox.min.css"
+[ "$status" = "200 False True" ] || fail "control: $BASE_NAME oblivion.min.css is not autodl's fixed-height stylesheet ($status); the gate cannot show the fix"
+echo "control: $BASE_NAME serves autodl's oblivion.min.css with the fixed 350px window and no layout block"
 docker exec "$run_id-old" python3 -c 'import xmlrpc.client; xmlrpc.client.ServerProxy("http://127.0.0.1:8001/").session.save()'
 volume_state "$run_id-old" > "$work_dir/state-old"
 grep -q "^$seeded\.torrent\$" "$work_dir/state-old" || fail "seeded torrent missing from the $BASE_NAME session"
@@ -401,7 +417,7 @@ upgrade_summary=$(runtime_check "$run_id-new" check "$PHP_VERSION" "$seeded") ||
 echo "$upgrade_summary" | tail -n 1
 step "login checks after upgrade failed" auth_check "$run_id-new" login
 step "stylesheets are not served after upgrade" theme_check "$run_id-new"
-echo "upgrade kept .rtorrent.rc, the session torrents, completed data, the club-QuickBox selection and autodl.cfg"
+echo "upgrade kept .rtorrent.rc, the session torrents, completed data, the Oblivion selection and autodl.cfg"
 docker rm -fv "$run_id-old" "$run_id-new" >/dev/null
 
 check_registry

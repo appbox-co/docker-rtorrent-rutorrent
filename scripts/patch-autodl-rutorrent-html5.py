@@ -14,6 +14,9 @@ autodl-rutorrent compatibility patch for modern ruTorrent:
   Filters window grows past the bottom of the screen with a long filter list.
   The themes in THEME_STYLESHEETS get a generated stylesheet that keeps the
   window on screen.
+- autodl's own six stylesheets give the Filters window a fixed 350px height,
+  so on ruTorrent 5 the filter settings spill out below it. The same layout
+  is appended to each of them between LAYOUT_BEGIN and LAYOUT_END.
 
 The image runs this at build time and 03-config.sh runs it on every start, so
 a persisted custom autodl-rutorrent plugin is patched too.
@@ -52,6 +55,37 @@ FILTERS_LAYOUT = """\
 
 SOURCE_MAP_RE = re.compile(r"/\*# sourceMappingURL=[^*]*\*/\s*")
 
+# Stylesheets autodl-rutorrent ships itself. Their colours are kept; the
+# layout is appended between these markers and replaced on every run.
+BUNDLED_STYLESHEETS = ("acid", "blue", "dark", "excel", "oblivion", "standard")
+LAYOUT_BEGIN = "/* Appbox Filters layout (patch-autodl-rutorrent-html5.py): begin */"
+LAYOUT_END = "/* Appbox Filters layout: end */"
+
+
+def without_layout(content: str) -> str:
+    """content with an appended Appbox layout block removed."""
+    start = content.find(LAYOUT_BEGIN)
+    if start == -1:
+        return content
+    end = content.find(LAYOUT_END, start)
+    if end == -1:
+        return content[:start].rstrip("\n") + "\n"
+    return (content[:start] + content[end + len(LAYOUT_END):].lstrip("\n")).rstrip("\n") + "\n"
+
+
+def append_layout(css_dir: pathlib.Path) -> None:
+    if not css_dir.is_dir():
+        return
+    block = f"{LAYOUT_BEGIN}\n{FILTERS_LAYOUT.strip()}\n{LAYOUT_END}\n"
+    for name in BUNDLED_STYLESHEETS:
+        path = css_dir / f"{name}.min.css"
+        if not path.is_file():
+            continue
+        content = path.read_text(encoding="utf-8")
+        fixed = without_layout(content).rstrip("\n") + "\n" + block
+        if fixed != content:
+            path.write_text(fixed, encoding="utf-8")
+
 
 def write_theme_stylesheets(css_dir: pathlib.Path) -> None:
     if not css_dir.is_dir():
@@ -65,7 +99,7 @@ def write_theme_stylesheets(css_dir: pathlib.Path) -> None:
         if colours is not None:
             source = css_dir / f"{colours}.min.css"
             if source.is_file():
-                parts.append(SOURCE_MAP_RE.sub("", source.read_text(encoding="utf-8")).strip())
+                parts.append(SOURCE_MAP_RE.sub("", without_layout(source.read_text(encoding="utf-8"))).strip())
         parts.append(FILTERS_LAYOUT.strip())
         content = "\n".join(parts) + "\n"
         if not target.exists() or target.read_text(encoding="utf-8") != content:
@@ -98,6 +132,7 @@ def main() -> None:
         if fixed != content:
             get_conf.write_text(fixed, encoding="utf-8")
 
+    append_layout(base / "css")
     write_theme_stylesheets(base / "css")
 
 
