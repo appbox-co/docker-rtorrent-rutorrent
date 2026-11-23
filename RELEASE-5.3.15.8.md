@@ -102,4 +102,8 @@ are unaffected by this release.
 - Digest: `sha256:f2d00903ffce4c84bd500d9efc0b968c351695e3ea469be671af170e19c5ec88`
   (OCI index: linux/amd64 `sha256:eee7e554e80bdc18a74dbd6e1b1f2db2901f5341bc7838c6b7c97ae78c5ba8fa` plus attestation)
 
-Catalogue: not added yet; no instance updated.
+Catalogue: cylo-api `migrations/20261122_rutorrent_5_3_15_8.sql` (admin-only,
+row 1614) applied 2026-11-22 21:26 UTC; canary on the ticket customer's
+instance at 21:30 UTC (torrents, theme and filters kept; customer confirmed
+the Filters window scrolls); `..._publish.sql` applied 2026-11-23 15:27 UTC,
+so 5.3.15.8 is the default (appbox-co/cylo-api#276). No fleet update run.
