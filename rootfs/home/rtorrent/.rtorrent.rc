@@ -1,0 +1,8 @@
+# Read only by autodl-irssi, never by rTorrent (rTorrent uses
+# /torrents/config/rtorrent/.rtorrent.rc). autodl takes its SCGI address from
+# rt-address in autodl.cfg and, when that is not set, from the first
+# scgi_local/scgi_port/network.scgi.open_* line in ~/.rtorrent.rc. irssi runs
+# with HOME=/home/rtorrent, so without this file autodl has no address and
+# every "upload-type = rtorrent" filter fails with "You have not initialized
+# rt-address (SCGI address)". The path matches cfg.rundir in .rtlocal.rc.
+network.scgi.open_local = /var/run/rtorrent/scgi.socket

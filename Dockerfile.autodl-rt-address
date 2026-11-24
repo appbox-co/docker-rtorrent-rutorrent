@@ -1,0 +1,25 @@
+# ruTorrent 5.3.15.11: the published 5.3.15.10 image plus
+# /home/rtorrent/.rtorrent.rc, so autodl-irssi can find rTorrent.
+#
+# autodl takes rTorrent's SCGI address from rt-address in autodl.cfg and,
+# when that is not set, from ~/.rtorrent.rc. irssi runs with
+# HOME=/home/rtorrent, which had no .rtorrent.rc, and Appbox's autodl.cfg has
+# no rt-address. Every filter with "upload-type = rtorrent" therefore matched
+# and downloaded its torrent, then failed with "You have not initialized
+# rt-address (SCGI address)", and nothing reached rTorrent. The new file names
+# the socket rTorrent opens (cfg.rundir in .rtlocal.rc). rTorrent never reads
+# it, and an rt-address the user sets in autodl.cfg still takes precedence.
+#
+# Starting from the 5.3.15.10 digest keeps rTorrent, libtorrent, ruTorrent,
+# the plugins, PHP and every Alpine package exactly as deployed.
+# release/verify-autodl-rt-address-image.sh is the release gate for this image.
+#
+# Release build (dedicated builder, from the exact pushed commit):
+#   docker build --builder default --pull --no-cache --platform linux/amd64 \
+#     -f Dockerfile.autodl-rt-address -t repo.cylo.net/rutorrent:5.3.15.11-0.16.24 .
+
+FROM repo.cylo.net/rutorrent@sha256:8ab0ef99acd54013efe2ea0b5c277d94020f8e7842eb38814b746122683981b7
+
+LABEL io.appbox.rutorrent.base-image="repo.cylo.net/rutorrent@sha256:8ab0ef99acd54013efe2ea0b5c277d94020f8e7842eb38814b746122683981b7"
+
+COPY --chown=rtorrent:rtorrent --chmod=644 rootfs/home/rtorrent/.rtorrent.rc /home/rtorrent/.rtorrent.rc
