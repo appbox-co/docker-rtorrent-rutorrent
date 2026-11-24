@@ -1,0 +1,460 @@
+/*
+ *  club-QuickBox skin for ruTorrent -- about / what's new surface.
+ *
+ *  The version line + What's new link appended to the core Help dialog, the
+ *  What's new dialog body (built on the shared .dlg-window chrome in
+ *  dialogs.css), the update-available callout with its Update now progress,
+ *  the quiet dot on the Help button, the top-bar update pill and the one-time
+ *  update toast. Every colour is a --qb-* token; radii use the shared tokens.
+ *  The dialog body caps its height and scrolls so a long changelog never pushes the
+ *  window off screen. All relative asset urls are ../images (one dir deeper
+ *  than style.css), per the module convention.
+ */
+
+/* ============================================================
+ * Help-dialog footer: version + What's new link.
+ * ============================================================ */
+#dlgHelp .cqb-about-foot {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 4px;
+	padding: 12px 14px;
+	border-top: 1px solid var(--qb-border);
+}
+
+#dlgHelp .cqb-about-version {
+	color: var(--qb-fg-muted);
+	font-family: var(--qb-font);
+	font-size: 12px;
+}
+
+#dlgHelp .cqb-about-foot a.cqb-about-link {
+	color: var(--qb-primary-text, var(--qb-primary));
+	font-family: var(--qb-font);
+	font-size: 12px;
+	font-weight: 600;
+	text-decoration: none;
+}
+#dlgHelp .cqb-about-foot a.cqb-about-link:hover,
+#dlgHelp .cqb-about-foot a.cqb-about-link:focus-visible {
+	text-decoration: underline;
+}
+
+/* ============================================================
+ * What's new dialog header glyph + scrollable body.
+ * ============================================================ */
+#cqbWhatsNew-header::after {
+	-webkit-mask-image: url(../images/icons/header-about.svg);
+	mask-image: url(../images/icons/header-about.svg);
+}
+
+/* Cap the body so a long changelog scrolls INSIDE the dialog and the window
+ * never runs past the viewport, whatever the host dialog manager centres on
+ * (the manager sets the window's own display inline, so a flex-column window
+ * cannot be relied on). The header -- with its close button -- sits above the
+ * scroll region and stays visible. ~60px is reserved for the header inside the
+ * 80vh / 760px window cap; the module re-centres the window after content fills. */
+#cqbWhatsNew .cqb-wn-body {
+	width: min(560px, 90vw);
+	max-height: calc(min(80vh, 760px) - 60px);
+	overflow-y: auto;
+	padding: 14px 16px 18px;
+	color: var(--qb-foreground);
+	font-family: var(--qb-font);
+}
+
+/* ============================================================
+ * Rendered changelog: version heads, section subheads, bullets, inline code.
+ * ============================================================ */
+#cqbWhatsNew .cqb-wn-entry + .cqb-wn-entry {
+	margin-top: 10px;
+	padding-top: 14px;
+	border-top: 1px solid var(--qb-border-soft, var(--qb-border));
+}
+
+#cqbWhatsNew .cqb-wn-head {
+	margin: 2px 0 6px;
+	font-size: 15px;
+	font-weight: 700;
+	color: var(--qb-foreground);
+}
+
+#cqbWhatsNew .cqb-wn-sub {
+	margin: 12px 0 4px;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--qb-fg-muted);
+}
+
+#cqbWhatsNew .cqb-wn-p {
+	margin: 6px 0;
+	font-size: 12.5px;
+	line-height: 1.55;
+	color: var(--qb-foreground);
+}
+
+#cqbWhatsNew .cqb-wn-list {
+	margin: 4px 0 8px;
+	padding-left: 18px;
+	list-style: disc;
+}
+
+#cqbWhatsNew .cqb-wn-list li {
+	margin: 3px 0;
+	font-size: 12.5px;
+	line-height: 1.5;
+	color: var(--qb-foreground);
+}
+
+#cqbWhatsNew .cqb-wn-code,
+#dlgHelp .cqb-about-foot .cqb-wn-code {
+	font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+	font-size: 11.5px;
+	padding: 1px 5px;
+	border-radius: 5px;
+	background-color: var(--qb-surface-2);
+	border: 1px solid var(--qb-border-soft, var(--qb-border));
+	color: var(--qb-foreground);
+	white-space: nowrap;
+}
+
+/* In the dialog a command may be longer than a narrow body: the chip wraps
+ * only at its spaces (each word is a no-wrap span built in js/about.js, so a
+ * flag like -u is never split). The default slice decoration is kept on
+ * purpose: a fragment ending at a break carries no end padding or border, so
+ * it can never run past the content edge. Short chips still sit on one line. */
+#cqbWhatsNew .cqb-wn-code {
+	white-space: normal;
+}
+#cqbWhatsNew .cqb-wn-code-word {
+	white-space: nowrap;
+}
+
+#cqbWhatsNew .cqb-wn-empty {
+	margin: 8px 0;
+	font-size: 12.5px;
+	color: var(--qb-fg-muted);
+}
+
+/* ============================================================
+ * Update-available callout -- a primary-tinted card, no edge accent bar.
+ * ============================================================ */
+#cqbWhatsNew .cqb-wn-update {
+	margin-bottom: 14px;
+	padding: 12px 14px;
+	border: 1px solid color-mix(in srgb, var(--qb-primary) 32%, var(--qb-border));
+	border-radius: var(--qb-radius-lg, var(--qb-radius));
+	background-color: color-mix(in srgb, var(--qb-primary) 10%, transparent);
+}
+
+#cqbWhatsNew .cqb-wn-update-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+#cqbWhatsNew .cqb-wn-update-dot {
+	width: 8px;
+	height: 8px;
+	flex: none;
+	border-radius: 50%;
+	background-color: var(--qb-primary);
+}
+
+#cqbWhatsNew .cqb-wn-update-label {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--qb-foreground);
+}
+
+/* The remote notes slot sits below the instructions, hairline-separated. */
+#cqbWhatsNew .cqb-wn-remote:not(:empty) {
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid color-mix(in srgb, var(--qb-primary) 24%, var(--qb-border));
+}
+
+/* ============================================================
+ * Quiet update dot on the Help button -- a small tint mark, never a bar.
+ * ============================================================ */
+#t a.cqb-btn#mnu_help.cqb-has-update::after {
+	content: "";
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background-color: var(--qb-primary);
+	box-shadow: 0 0 0 2px var(--qb-surface);
+	pointer-events: none;
+}
+
+/* ============================================================
+ * Update now (QuickBox admin): a compact primary in the card head, with the
+ * job progress line under it. The base button chrome is .dlg-window button.
+ * ============================================================ */
+#cqbWhatsNew .cqb-wn-update:focus {
+	outline: none;
+}
+#cqbWhatsNew .cqb-wn-update:focus-visible {
+	outline: 2px solid var(--qb-ring);
+	outline-offset: 2px;
+}
+
+#cqbWhatsNew .cqb-wn-update-head .cqb-wn-update-now {
+	margin-left: auto;
+	min-width: 0;
+	min-height: 30px;
+	padding: 0 12px;
+	font-size: 12.5px;
+}
+
+/* Busy keeps focus (aria-disabled, not disabled) but reads as inert. */
+#cqbWhatsNew .cqb-wn-update-now[aria-disabled="true"],
+#cqbWhatsNew .cqb-wn-update-now[aria-disabled="true"]:hover {
+	background: var(--qb-muted, var(--qb-surface-2));
+	border-color: var(--qb-border);
+	color: var(--qb-fg-muted);
+	cursor: progress;
+	filter: none;
+}
+
+#cqbWhatsNew .cqb-wn-job {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 600;
+}
+#cqbWhatsNew .cqb-wn-job[hidden],
+#cqbWhatsNew .cqb-wn-job-detail[hidden] {
+	display: none;
+}
+#cqbWhatsNew .cqb-wn-job.is-error {
+	color: var(--qb-destructive-text, var(--qb-destructive));
+}
+
+/* Only an in-flight job animates; reduced motion keeps a static ring. */
+#cqbWhatsNew .cqb-wn-job.is-busy::before {
+	content: "";
+	flex: none;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	border: 2px solid color-mix(in srgb, var(--qb-primary) 30%, transparent);
+	border-top-color: var(--qb-primary);
+	animation: cqb-upd-spin 0.8s linear infinite;
+}
+
+#cqbWhatsNew .cqb-wn-job-detail {
+	color: var(--qb-fg-muted);
+	overflow-wrap: anywhere;
+}
+
+@keyframes cqb-upd-spin {
+	to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+ * Top-bar update pill -- just left of Help, only while an update is known.
+ * A primary-tinted pill (the Add action owns the filled primary).
+ * ============================================================ */
+/* width/min-height undo the core button{width:80px} and the base button
+ * min-height, so the pill sizes to its label at every bar width. */
+#t .cqb-upd-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	flex: none;
+	width: auto;
+	min-width: 0;
+	height: 36px;
+	min-height: 0;
+	margin: 0 2px;
+	padding: 0 11px 0 9px;
+	border: 1px solid color-mix(in srgb, var(--qb-primary) 45%, var(--qb-border));
+	border-radius: 999px;
+	background-color: color-mix(in srgb, var(--qb-primary) 14%, transparent);
+	color: var(--qb-primary-text, var(--qb-primary));
+	font-family: var(--qb-font);
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background-color 0.15s ease-out;
+}
+#t .cqb-upd-pill:hover {
+	background-color: color-mix(in srgb, var(--qb-primary) 22%, transparent);
+}
+#t .cqb-upd-pill:focus {
+	outline: none;
+}
+#t .cqb-upd-pill:focus-visible {
+	outline: 2px solid var(--qb-ring);
+	outline-offset: 1px;
+}
+
+#t .cqb-upd-pill-dot {
+	width: 7px;
+	height: 7px;
+	flex: none;
+	border-radius: 50%;
+	background-color: var(--qb-primary);
+}
+
+#t .cqb-upd-pill-ver {
+	font-variant-numeric: tabular-nums;
+}
+
+/* Narrow bars keep the dot + version; the accessible name keeps the word. */
+@media (max-width: 1500px) {
+	#t .cqb-upd-pill-word {
+		display: none;
+	}
+	#t .cqb-upd-pill {
+		padding: 0 10px 0 8px;
+	}
+}
+
+/* Below the topbar's desktop breakpoint the right cluster is one row of the
+ * open mobile menu with no slot to spare; the Help dot and the toast carry the
+ * notice there. */
+@media (max-width: 767.98px) {
+	#t .cqb-upd-pill {
+		display: none;
+	}
+}
+
+/* ============================================================
+ * One-time update toast -- top right under the bar (the noty toasts own the
+ * bottom-right corner), below every dialog (the core stacks dialogs from 2000).
+ * ============================================================ */
+.cqb-upd-toast {
+	position: fixed;
+	top: calc(var(--navbar-height, 56px) + 10px);
+	right: 16px;
+	z-index: 1100;
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	width: min(340px, calc(100vw - 32px));
+	padding: 12px 42px 12px 14px;
+	background-color: var(--qb-surface);
+	border: 1px solid color-mix(in srgb, var(--qb-primary) 32%, var(--qb-border));
+	border-radius: var(--qb-radius-lg, var(--qb-radius));
+	box-shadow: var(--qb-shadow);
+	color: var(--qb-foreground);
+	font-family: var(--qb-font);
+	box-sizing: border-box;
+}
+
+.cqb-upd-toast-dot {
+	width: 8px;
+	height: 8px;
+	flex: none;
+	margin-top: 5px;
+	border-radius: 50%;
+	background-color: var(--qb-primary);
+}
+
+.cqb-upd-toast-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.cqb-upd-toast-title {
+	font-size: 13px;
+	font-weight: 700;
+	line-height: 1.4;
+}
+
+.cqb-upd-toast-body {
+	margin-top: 2px;
+	font-size: 12.5px;
+	line-height: 1.45;
+	color: var(--qb-fg-muted);
+}
+
+.cqb-upd-toast-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 10px;
+}
+
+/* width/min-width undo the core button{width:80px}, so the label sets the size. */
+.cqb-upd-act {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: auto;
+	min-width: 0;
+	min-height: 30px;
+	margin: 0;
+	padding: 0 14px;
+	border: 1px solid var(--qb-border);
+	border-radius: var(--qb-radius);
+	background: transparent;
+	color: var(--qb-foreground);
+	font-family: var(--qb-font);
+	font-size: 12.5px;
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background-color 0.15s ease, filter 0.15s ease;
+}
+/* :not(:disabled) lifts these above the generic button:hover/:active washes
+ * in base.css, which would otherwise repaint the fill and the label. */
+.cqb-upd-act:not(:disabled):hover,
+.cqb-upd-act:not(:disabled):active {
+	background: var(--qb-muted, var(--qb-surface-2));
+	color: var(--qb-foreground);
+}
+.cqb-upd-act.cqb-upd-act-primary,
+.cqb-upd-act.cqb-upd-act-primary:not(:disabled):active {
+	background: var(--qb-primary);
+	border-color: var(--qb-primary);
+	color: var(--qb-primary-fg);
+	font-weight: 600;
+}
+.cqb-upd-act.cqb-upd-act-primary:not(:disabled):hover {
+	background: var(--qb-primary-hover, var(--qb-primary));
+	border-color: var(--qb-primary-hover, var(--qb-primary));
+	color: var(--qb-primary-fg);
+}
+
+/* The close is the shared square .cqb-icon-btn--md (28px); this only pins it
+ * to the corner and names its glyph. */
+.cqb-upd-toast .cqb-upd-toast-close {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+}
+.cqb-upd-toast-close > .cqb-icon {
+	-webkit-mask-image: url(../images/icons/menu-close.svg);
+	mask-image: url(../images/icons/menu-close.svg);
+	-webkit-mask-size: 12px;
+	mask-size: 12px;
+}
+
+.cqb-upd-act:focus-visible {
+	outline: 2px solid var(--qb-ring);
+	outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	#cqbWhatsNew .cqb-wn-job.is-busy::before {
+		animation: none;
+	}
+	#t .cqb-upd-pill,
+	.cqb-upd-act {
+		transition: none;
+	}
+}
