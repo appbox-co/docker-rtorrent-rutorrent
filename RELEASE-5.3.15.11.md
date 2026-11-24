@@ -74,10 +74,12 @@ after the torrent has been downloaded.
 
 ## Build and gate
 
-Trial run on builder.grant from local commit
-`729abdd` (`git archive`), tag `local/rutorrent-trial:5.3.15.11-Zmk8U6`:
+Trial runs on builder.grant, each from a `git archive` of a local commit:
 `docker build --builder default --pull --no-cache --platform linux/amd64 -f Dockerfile.autodl-rt-address`,
-then `release/verify-autodl-rt-address-image.sh` in trial mode. It passed:
+then `release/verify-autodl-rt-address-image.sh` in trial mode. The first ran on
+`729abdd` (`local/rutorrent-trial:5.3.15.11-Zmk8U6`). The last ran on `cf88877`
+(`local/rutorrent-trial:5.3.15.11-vnpIVk`), after the review fixes below. Both
+passed:
 
 - the 5.3.15.10 layers (38) plus one, with labels, entrypoint, healthcheck
   and environment unchanged;
@@ -96,6 +98,20 @@ then `release/verify-autodl-rt-address-image.sh` in trial mode. It passed:
   (MANIFEST_UNKNOWN) before and after.
 
 autodl reported a total time of about 15 seconds for each send in the gate.
+
+## Review
+
+Two reviewers who did not write the change, Claude Opus 5.5 and Claude
+Sonnet 5.5, both found it ready to roll out. Both noted that
+`COPY rootfs /` in the full `Dockerfile` ran after the chown of
+`/home/rtorrent`, so a full build would have left that directory
+`root:root 755` and the new file root-owned. Opus reproduced this with a
+BuildKit build. The chown, now with `chmod 775`, runs after the COPY
+(`cf88877`); a local build of that order gives `rtorrent:rtorrent 775` and
+`rtorrent:rtorrent 644`, as in the overlay. The 5.3.15.11 overlay never ran
+that part of the build, so it was unaffected. Sonnet also found a dead
+`chmod` in `autodl-send-check.py`; the check now hands its work directory to
+rtorrent instead.
 
 The release build, publication and catalogue rows follow separately, from
 the pushed commit.
