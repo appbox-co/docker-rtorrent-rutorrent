@@ -130,7 +130,7 @@
 	var sheetKeyed = {};
 	function sheetOf(href) {
 		for (var i = 0; i < SELF_SHEETS.length; i++) {
-			if (href.indexOf("themes/club-QuickBox/" + SELF_SHEETS[i]) !== -1) return SELF_SHEETS[i];
+			if (href.indexOf("themes/club-QuickBox-v2/" + SELF_SHEETS[i]) !== -1) return SELF_SHEETS[i]; /* Appbox: directory name */
 		}
 		return null;
 	}

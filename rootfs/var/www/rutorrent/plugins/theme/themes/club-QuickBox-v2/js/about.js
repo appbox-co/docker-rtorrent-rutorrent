@@ -259,13 +259,9 @@
 	}
 
 	function scheduleCheck() {
-		var cached = readCache();
-		var now = Date.now();
-		if (cached && typeof cached.ts === "number" && (now - cached.ts) < DAY) {
-			applyResult(cached.version, cached.file); // fresh: no network
-			return;
-		}
-		defer(doRemoteCheck);
+		/* Appbox: this copy ships with the ruTorrent image and is updated with
+		 * it, so there is no GitHub update check and no "Update available". */
+		applyResult("", "");
 	}
 
 	/* ============================================================

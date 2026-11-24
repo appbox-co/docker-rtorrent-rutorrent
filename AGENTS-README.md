@@ -19,7 +19,8 @@ users, additional plugins, and a custom mobile ruTorrent UI.
   `-f Dockerfile.auth-fail-closed`. `5.3.15.7-0.16.24` is the next PHP
   security release (`-f Dockerfile.php-security`) and `5.3.15.8-0.16.24` the
   autodl theme stylesheet release (`-f Dockerfile.autodl-themes`), followed by
-  `5.3.15.9-0.16.24` (same Dockerfile); see below.
+  `5.3.15.9-0.16.24` (same Dockerfile), then `5.3.15.10-0.16.24`, which adds
+  club-QuickBox v2 (`-f Dockerfile.quickbox-v2`); see below.
 - Base runtime: `crazymax/alpine-s6:3.24-3.2.3.0`
 - rTorrent / libtorrent: `0.16.24`
 - ruTorrent: `5.3.15` (upstream commit `fe468360f94b02def11bbf67b16316bbe8081380`, catalogue `5.3.15.4`)
@@ -112,6 +113,14 @@ The Dockerfile builds or vendors:
 - `ratiocolor` (Gyran, pinned commit), patched by `scripts/patch-ratiocolor.py` to colour
   the ratio text and to recolour after ruTorrent 5's in-place `syncDOM()` cell updates.
 - `appbox` ruTorrent theme into `/var/www/rutorrent/plugins/theme/themes/appbox`.
+- club-QuickBox themes from `rootfs/`: the original `club-QuickBox` (v5.0) and, since
+  5.3.15.10, `club-QuickBox-v2` (QuickBox/club-QuickBox v2.7.2, upstream commit
+  `e24bfbd38cf7710f3bd38e97d06e6099c07a1c1f`, public domain). Upstream installs v2
+  as `club-QuickBox` too, so the bundled copy has its own directory. Two Appbox edits
+  to the vendored files: `init.js` matches its stylesheets under
+  `themes/club-QuickBox-v2/`, and `js/about.js` has no GitHub update check (the theme
+  updates with the image). To update v2, replace the directory with the new
+  upstream files (without `bin/`, `docs/`, `.github/`) and re-apply both edits.
 - `mktorrent` for the ruTorrent `create` plugin.
 - DumpTorrent tools for the ruTorrent dump plugin.
 
@@ -122,7 +131,7 @@ Do not make autodl fixes only in the generated image tree.
 autodl-rutorrent loads `css/<theme>.min.css` (the active theme's directory name in
 lower case) and ships stylesheets only for Standard, Acid, Blue, Dark, Excel and
 Oblivion. Since 5.3.15.8 the patch script also writes `club-quickbox`, `darkbetter`,
-`materialdesign` and `oblivionblue` stylesheets (`THEME_STYLESHEETS`): the matching
+`materialdesign` and `oblivionblue` stylesheets (`club-quickbox-v2` since 5.3.15.10) (`THEME_STYLESHEETS`): the matching
 bundled colours plus a layout that keeps the Filters window on screen. Each generated
 file starts with `GENERATED_MARKER`; the script rewrites only files that start with it,
 so a stylesheet shipped by a custom plugin is left alone. Add a theme there when the
@@ -278,6 +287,23 @@ docker build --builder default --pull --no-cache --platform linux/amd64 \
   -f Dockerfile.autodl-themes -t repo.cylo.net/rutorrent:5.3.15.9-0.16.24 . && \
   release/verify-autodl-image.sh repo.cylo.net/rutorrent:5.3.15.9-0.16.24 && \
   docker push repo.cylo.net/rutorrent:5.3.15.9-0.16.24
+```
+
+## club-QuickBox v2 (5.3.15.10)
+
+`Dockerfile.quickbox-v2` builds catalogue `5.3.15.10` / tag `5.3.15.10-0.16.24` from
+the 5.3.15.9 digest. It copies `club-QuickBox-v2` (nobody:nogroup, 755/644) and the
+patch script, then runs the script, which adds `club-quickbox-v2.min.css`. Release
+gate: `release/verify-quickbox-v2-image.sh <image>` (filesystem identical to 5.3.15.9
+except the script, the theme directory and that stylesheet; the theme files served
+with the login and refused without; upgrade from 5.3.15.9 with the original
+club-QuickBox selected, with a 404 control for v2). Details in `RELEASE-5.3.15.10.md`.
+
+```bash
+docker build --builder default --pull --no-cache --platform linux/amd64 \
+  -f Dockerfile.quickbox-v2 -t repo.cylo.net/rutorrent:5.3.15.10-0.16.24 . && \
+  release/verify-quickbox-v2-image.sh repo.cylo.net/rutorrent:5.3.15.10-0.16.24 && \
+  docker push repo.cylo.net/rutorrent:5.3.15.10-0.16.24
 ```
 
 ## Build And Release

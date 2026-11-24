@@ -31,10 +31,12 @@ import sys
 
 # Theme (lower-case directory name) -> bundled autodl stylesheet whose colours
 # suit it. None: the theme styles autodl's colours itself, so the generated
-# file holds only the layout. club-QuickBox is also the directory name of
-# club-QuickBox v2, which customers can install as a custom theme.
+# file holds only the layout. club-QuickBox is the original club-QuickBox
+# (and the directory name a customer's own v2 install uses);
+# club-QuickBox-v2 is the bundled v2.
 THEME_STYLESHEETS = {
     "club-quickbox": None,
+    "club-quickbox-v2": None,
     "darkbetter": "dark",
     "materialdesign": "dark",
     "oblivionblue": "oblivion",

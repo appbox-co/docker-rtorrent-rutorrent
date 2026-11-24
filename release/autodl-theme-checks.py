@@ -6,7 +6,8 @@ The release gate pipes this file to `docker exec -i <container> python3 -`.
              nginx serves its generated autodl stylesheet (with the login)
              with the Filters layout; each of autodl's own BUNDLED
              stylesheets is served with its rules followed by exactly one
-             layout block
+             layout block; the bundled club-QuickBox-v2 theme's files are
+             served with the login and refused without it
 
 The container's USERNAME and PASSWORD environment set the basic-auth login.
 The last line printed is a JSON summary.
@@ -31,10 +32,13 @@ THEMES_DIR = pathlib.Path("/var/www/rutorrent/plugins/theme/themes")
 # Theme directory -> autodl stylesheet whose rules the generated file starts with (None: layout only).
 THEMES = {
     "club-QuickBox": None,
+    "club-QuickBox-v2": None,
     "DarkBetter": "dark",
     "MaterialDesign": "dark",
     "OblivionBlue": "oblivion",
 }
+# club-QuickBox v2 (since 5.3.15.10): files its init.js loads.
+V2_ASSETS = ("style.css", "init.js", "js/about.js", "css/base.css", "lang/en.js", "images/icons/library.json")
 
 
 def get(path, auth=True):
@@ -67,6 +71,13 @@ def served():
         unauth, _ = get(path, auth=False)
         assert unauth == 401, f"{path} without a login returned HTTP {unauth}"
         result[theme] = len(body)
+    for asset in V2_ASSETS:
+        path = f"/plugins/theme/themes/club-QuickBox-v2/{asset}"
+        status, body = get(path)
+        assert status == 200 and body, f"{path} returned HTTP {status}"
+        unauth, _ = get(path, auth=False)
+        assert unauth == 401, f"{path} without a login returned HTTP {unauth}"
+    result["club-QuickBox-v2 assets"] = len(V2_ASSETS)
     for name in BUNDLED:
         path = f"/plugins/autodl-rutorrent/css/{name}.min.css"
         status, body = get(path)
