@@ -84,3 +84,18 @@ passed. It checks:
   After the upgrade, torrents, theme selection and autodl.cfg are kept, and
   v2 is served;
 - that the registry reports the tag absent.
+
+Release build: `docker build --builder default --pull --no-cache --platform linux/amd64 -f Dockerfile.quickbox-v2 -t repo.cylo.net/rutorrent:5.3.15.10-0.16.24 .`
+on builder.grant from the exact pushed commit
+`7961e0620d817d01f993399489790d3db8ce324a`. `release/verify-quickbox-v2-image.sh`
+passed in release mode with the results above, the registry reported the tag
+absent before and after the checks, and the first push succeeded.
+
+## Published
+
+- `repo.cylo.net/rutorrent:5.3.15.10-0.16.24`
+- Digest: `sha256:8ab0ef99acd54013efe2ea0b5c277d94020f8e7842eb38814b746122683981b7`
+  (OCI index: linux/amd64 `sha256:9186ddc8aebe5905b8f36459628cbae55322711f5a3f547296c5b724e4dee039` plus attestation)
+
+Catalogue: cylo-api `migrations/20261124_rutorrent_5_3_15_10.sql` (admin-only,
+not default) and `..._publish.sql`.

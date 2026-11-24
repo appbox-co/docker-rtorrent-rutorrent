@@ -40,7 +40,7 @@ image:
   name: "rutorrent"
   version: "5.3.15.10"
   tag: "5.3.15.10-0.16.24"
-  digest: "repo.cylo.net/rutorrent@sha256:b4b93012e2a789d38e1da2a6a446d53f1220d2f676d44853bbce7864f67256df"
+  digest: "repo.cylo.net/rutorrent@sha256:8ab0ef99acd54013efe2ea0b5c277d94020f8e7842eb38814b746122683981b7"
 
 container:
   cmd: null
