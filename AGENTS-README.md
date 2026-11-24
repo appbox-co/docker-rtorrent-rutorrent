@@ -20,7 +20,9 @@ users, additional plugins, and a custom mobile ruTorrent UI.
   security release (`-f Dockerfile.php-security`) and `5.3.15.8-0.16.24` the
   autodl theme stylesheet release (`-f Dockerfile.autodl-themes`), followed by
   `5.3.15.9-0.16.24` (same Dockerfile), then `5.3.15.10-0.16.24`, which adds
-  club-QuickBox v2 (`-f Dockerfile.quickbox-v2`); see below.
+  club-QuickBox v2 (`-f Dockerfile.quickbox-v2`), and `5.3.15.11-0.16.24`,
+  which gives autodl-irssi rTorrent's SCGI address
+  (`-f Dockerfile.autodl-rt-address`); see below.
 - Base runtime: `crazymax/alpine-s6:3.24-3.2.3.0`
 - rTorrent / libtorrent: `0.16.24`
 - ruTorrent: `5.3.15` (upstream commit `fe468360f94b02def11bbf67b16316bbe8081380`, catalogue `5.3.15.4`)
@@ -107,7 +109,12 @@ The Dockerfile builds or vendors:
 
 - `mobile/` into `/var/www/rutorrent/plugins/mobile`.
 - `geoip2-rutorrent/` into `/var/www/rutorrent/plugins/geoip2`.
-- `autodl-irssi` into `/home/rtorrent`.
+- `autodl-irssi` into `/home/rtorrent`. irssi runs with `HOME=/home/rtorrent`, and autodl
+  reads rTorrent's SCGI address from `rt-address` in autodl.cfg or, when that is unset,
+  from `~/.rtorrent.rc`. Since 5.3.15.11, `rootfs/home/rtorrent/.rtorrent.rc` names
+  `/var/run/rtorrent/scgi.socket` for that purpose only; rTorrent itself reads
+  `/torrents/config/rtorrent/.rtorrent.rc`. Keep the two socket paths in step with
+  `cfg.rundir` in `.rtlocal.rc`.
 - `autodl-rutorrent` into `/var/www/rutorrent/plugins/autodl-rutorrent`.
 - `filemanager`, `filemanager-media`, and `filemanager-share`.
 - `ratiocolor` (Gyran, pinned commit), patched by `scripts/patch-ratiocolor.py` to colour
@@ -304,6 +311,26 @@ docker build --builder default --pull --no-cache --platform linux/amd64 \
   -f Dockerfile.quickbox-v2 -t repo.cylo.net/rutorrent:5.3.15.10-0.16.24 . && \
   release/verify-quickbox-v2-image.sh repo.cylo.net/rutorrent:5.3.15.10-0.16.24 && \
   docker push repo.cylo.net/rutorrent:5.3.15.10-0.16.24
+```
+
+## autodl SCGI address (5.3.15.11)
+
+`Dockerfile.autodl-rt-address` builds catalogue `5.3.15.11` / tag `5.3.15.11-0.16.24`
+from the 5.3.15.10 digest and copies only `/home/rtorrent/.rtorrent.rc`
+(rtorrent:rtorrent 644). Before it, every autodl filter with `upload-type = rtorrent`
+failed with "You have not initialized rt-address (SCGI address)". Release gate:
+`release/verify-autodl-rt-address-image.sh <image>` (filesystem identical to 5.3.15.10
+except that file; `release/autodl-send-check.py` runs autodl's own
+`MatchedRelease::_sendRtorrent` in the live irssi and must get a torrent into rTorrent
+on a fresh install, after a restart and after an upgrade from 5.3.15.10, while the
+same check on 5.3.15.10 must fail with the rt-address error). Details in
+`RELEASE-5.3.15.11.md`.
+
+```bash
+docker build --builder default --pull --no-cache --platform linux/amd64 \
+  -f Dockerfile.autodl-rt-address -t repo.cylo.net/rutorrent:5.3.15.11-0.16.24 . && \
+  release/verify-autodl-rt-address-image.sh repo.cylo.net/rutorrent:5.3.15.11-0.16.24 && \
+  docker push repo.cylo.net/rutorrent:5.3.15.11-0.16.24
 ```
 
 ## Build And Release
