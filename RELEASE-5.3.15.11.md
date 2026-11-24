@@ -147,3 +147,11 @@ proxy: the theme list offers both QuickBox versions, v2's stylesheets load
 once with its own key, and the autodl Filters window with 80 filters stays on
 screen with the list scrolling at 420px. No console errors, and nothing is
 requested from GitHub.
+
+## Published as the default
+
+appbox-co/cylo-api#308 merged (e94fe0b9), and `20261124_rutorrent_5_3_15_11_publish.sql`
+was applied at 2026-11-24 20:37:23 UTC. 5.3.15.11 (row 1627) is the default in place
+of 5.3.15.9, and 5.3.15.10 (row 1626) stays admin-only. Instances on 5.3.15.7, 5.3.15.8
+and 5.3.15.9 are offered the update. No fleet update was run. The grant canary was
+uninstalled afterwards.
