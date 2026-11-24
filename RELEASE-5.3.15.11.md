@@ -113,5 +113,25 @@ that part of the build, so it was unaffected. Sonnet also found a dead
 `chmod` in `autodl-send-check.py`; the check now hands its work directory to
 rtorrent instead.
 
-The release build, publication and catalogue rows follow separately, from
-the pushed commit.
+## Release
+
+Release build: `docker build --builder default --pull --no-cache --platform linux/amd64 -f Dockerfile.autodl-rt-address -t repo.cylo.net/rutorrent:5.3.15.11-0.16.24 .`
+on builder.grant from the exact pushed commit
+`0262a7157efda7ea682251799ec1c9028faacd82`.
+`release/verify-autodl-rt-address-image.sh` passed in release mode: 5.3.15.10's
+38 layers plus one, and only `/home/rtorrent/.rtorrent.rc` added (33,578
+entries). autodl sent a torrent to rTorrent on a fresh install, after a
+restart and after an upgrade from 5.3.15.10, where the control failed with
+the rt-address error. The registry reported the tag absent before and after
+the checks, and the first push succeeded.
+
+## Published
+
+- `repo.cylo.net/rutorrent:5.3.15.11-0.16.24`
+- Digest: `sha256:3fc67478bd5f9a476adfc2ccc8f976618852e061682d16c0bb042eb564259137`
+  (OCI index: linux/amd64 `sha256:8395d79cd2fcdf398142c535a1c5eed7af27d053ff42b8ed975f9c9a6257bdf4` plus attestation)
+
+5.3.15.11 also carries club-QuickBox v2 from 5.3.15.10, which stays
+admin-only and is not published; 5.3.15.11 replaces 5.3.15.9 directly.
+Catalogue: cylo-api `migrations/20261124_rutorrent_5_3_15_11.sql`
+(admin-only, not default) and `..._publish.sql` (appbox-co/cylo-api#308).
