@@ -20,6 +20,7 @@ failure.
 import hashlib
 import json
 import os
+import pwd
 import re
 import secrets
 import socket
@@ -136,7 +137,6 @@ def main():
         fail("test torrent already loaded before the check")
 
     os.makedirs(WORK, exist_ok=True)
-    os.chmod(WORK, 0o755)
     torrent_path = WORK + "/gate.torrent"
     status_path = WORK + "/status"
     driver_path = WORK + "/driver.pl"
@@ -144,7 +144,8 @@ def main():
         out.write(bencode({"announce": "http://127.0.0.1:1/announce", "info": info}))
     if os.path.exists(status_path):
         os.unlink(status_path)
-    os.chmod(WORK, 0o777)
+    # irssi runs as rtorrent and writes the status file here.
+    os.chown(WORK, pwd.getpwnam("rtorrent").pw_uid, pwd.getpwnam("rtorrent").pw_gid)
     driver = """use strict; use warnings;
 my $ok = eval {
     require AutodlIrssi::MatchedRelease;

@@ -359,9 +359,12 @@ RUN apk --update --no-cache del \
     wget \
     zlib-dev
 
-RUN chown -R rtorrent:rtorrent /home/rtorrent
-
 COPY rootfs /
+
+# After COPY rootfs /: it writes rootfs/home/rtorrent/.rtorrent.rc and would
+# otherwise leave /home/rtorrent and that file owned by root.
+RUN chown -R rtorrent:rtorrent /home/rtorrent \
+  && chmod 775 /home/rtorrent
 
 COPY scripts/patch-rutorrent-cli-arguments.py /usr/local/bin/patch-rutorrent-cli-arguments.py
 RUN python3 /usr/local/bin/patch-rutorrent-cli-arguments.py /var/www/rutorrent \
