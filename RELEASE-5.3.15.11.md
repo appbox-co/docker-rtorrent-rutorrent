@@ -135,3 +135,15 @@ the checks, and the first push succeeded.
 admin-only and is not published; 5.3.15.11 replaces 5.3.15.9 directly.
 Catalogue: cylo-api `migrations/20261124_rutorrent_5_3_15_11.sql`
 (admin-only, not default) and `..._publish.sql` (appbox-co/cylo-api#308).
+
+## Canary
+
+2026-11-24, fresh install on grant (instance 266952,
+`rutorrent.grant.appboxes.co`): healthy at 20:31 UTC, and the installed callback
+arrived. With 80 filters and no `rt-address` in `autodl.cfg`,
+`release/autodl-send-check.py sent` got "Sent torrent to rtorrent" and
+rTorrent loaded the torrent. club-QuickBox v2 through the Appbox domain and
+proxy: the theme list offers both QuickBox versions, v2's stylesheets load
+once with its own key, and the autodl Filters window with 80 filters stays on
+screen with the list scrolling at 420px. No console errors, and nothing is
+requested from GitHub.
