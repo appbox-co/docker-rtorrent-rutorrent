@@ -61,3 +61,43 @@ basic-auth behaviour are those of 5.3.15.12.
 - `menus none` and `api` as in 5.3.15.12, and the runtime, login and autodl
   checks, on a fresh install, after a restart and after an upgrade from
   5.3.15.12 on the same volumes.
+
+## Build and gate
+
+Trial runs on builder.grant from a `git archive` of a pushed commit:
+`docker build --builder default --pull --no-cache --platform linux/amd64 -f Dockerfile.filemanager-module-urls`,
+then `release/verify-filemanager-module-urls-image.sh` in trial mode.
+
+- `cdc2bd5` failed only on the script's mode: `git archive` writes files 664,
+  so the plain COPY installed it 664. Both Dockerfiles now use
+  `COPY --chmod=644` (`4f4a4ae`).
+- `4f4a4ae` (`local/rutorrent-trial:5.3.15.13-524983`) passed:
+  - 5.3.15.12's 40 layers plus two, with labels, entrypoint, healthcheck and
+    environment unchanged;
+  - 33,580 filesystem entries, identical to 5.3.15.12 except `init.js`,
+    `js/app.js`, `js/ui.js` and `js/file-archive.js` (what the script makes of
+    upstream v1.6.0, token `e25127a6c9e3`) and the script itself;
+  - fresh install, restart and upgrade from 5.3.15.12: all ten imports carry
+    the token, every versioned URL is served with the file's bytes, and
+    `php/getplugins.php` hands out the versioned `app.js` import. The control
+    found none versioned on 5.3.15.12. Menus, the File Manager API, logins,
+    uploads and autodl all passed, and the upgrade kept the session, data,
+    theme and autodl.cfg;
+  - the registry reported the tag absent before and after.
+
+## Browser test
+
+The update path the 5.3.15.12 canary failed, on the builder, through an nginx
+that adds a test login and an SSH tunnel:
+
+1. A 5.3.15.11 container. File Manager 1.5.1's modules were downloaded, and
+   a normal reload then served them from the cache (transfer size 0), as on
+   grant.
+2. The container replaced by the `4f4a4ae` trial image on the same volumes.
+3. One normal reload: `app.js`, `ui.js`, `api.js`, `actions.js`, `utils.js`,
+   `ui-fs.js`, `ui-dialogs.js`, `file-archive.js` and `file-checksum.js` were
+   all downloaded at `?v=e25127a6c9e3`, each once; only `twig.min.js` kept
+   its URL. The 1.5.1 encoder was gone.
+4. The File Manager menu had every entry enabled. Copy (task console "Done")
+   and Delete worked, and the results were on disk. No context-menu warning
+   in the console.
