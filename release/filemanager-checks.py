@@ -109,9 +109,12 @@ def menus(expect):
 IMPORT = re.compile(r"""(?:\bfrom\s+|\bimport\s*\(\s*)["']\./([A-Za-z0-9_.-]+\.js)(?:\?v=([0-9a-f]+))?["']""")
 
 
+def login():
+    return "Basic " + base64.b64encode((os.environ["USERNAME"] + ":" + os.environ["PASSWORD"]).encode()).decode()
+
+
 def get(path):
-    login = base64.b64encode((os.environ["USERNAME"] + ":" + os.environ["PASSWORD"]).encode()).decode()
-    request = urllib.request.Request("http://127.0.0.1" + path, headers={"Authorization": "Basic " + login})
+    request = urllib.request.Request("http://127.0.0.1" + path, headers={"Authorization": login()})
     with urllib.request.urlopen(request, timeout=60) as response:
         return response.status, response.read()
 
@@ -148,11 +151,10 @@ def modules(expect):
 
 
 def call(payload):
-    login = base64.b64encode((os.environ["USERNAME"] + ":" + os.environ["PASSWORD"]).encode()).decode()
     body = urllib.parse.urlencode({"action": json.dumps(payload)}).encode()
     request = urllib.request.Request(
         "http://127.0.0.1/plugins/filemanager/action.php", data=body, method="POST",
-        headers={"Authorization": "Basic " + login,
+        headers={"Authorization": login(),
                  "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                  "X-Requested-With": "XMLHttpRequest"})
     with urllib.request.urlopen(request, timeout=60) as response:

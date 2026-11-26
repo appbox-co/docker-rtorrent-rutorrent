@@ -101,3 +101,24 @@ that adds a test login and an SSH tunnel:
 4. The File Manager menu had every entry enabled. Copy (task console "Done")
    and Delete worked, and the results were on disk. No context-menu warning
    in the console.
+
+## Review
+
+Claude Opus 5.5 found nothing to change. It ran the script on upstream
+v1.6.0, the gate's token and quoting under dash, and checked that no other
+code loads File Manager's modules by the old URLs. Claude Sonnet 5.5 found it
+ready, with four small points:
+
+- The script counted only the import forms it rewrites, so a later File
+  Manager with a bare `import "./x.js"` or a `../` path could keep an
+  unversioned module. Fixed: it now also fails if any relative `.js`
+  reference in `js/*.js` would be left without a token. Its output for
+  v1.6.0 is unchanged (`e25127a6c9e3`, the same four files), and a test tree
+  with an added bare import fails before anything is written.
+- `get()` and `call()` in `filemanager-checks.py` built the login header
+  twice. Fixed with a `login()` helper.
+- The catalogue notes say new folders can't be made at File Manager's top
+  level. Left in: it is true (canary of 5.3.15.12), and it answers what a
+  customer trying New Directory there would see, now that the entry works.
+- The full `Dockerfile` path isn't gated. Left as in 5.3.15.12: releases are
+  built from the overlays.

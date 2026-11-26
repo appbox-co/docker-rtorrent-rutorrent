@@ -193,4 +193,3 @@ Chrome that had used ruTorrent on that domain before:
 
 5.3.15.12 stays admin-only and is not published. 5.3.15.13 (RELEASE-5.3.15.13.md)
 versions File Manager's module URLs so browsers load 1.6.0 after the update.
-

@@ -39,6 +39,9 @@ EXPECTED = {
 # not change between File Manager versions and is left alone.
 RELATIVE = re.compile(r"""((?:\bfrom\s+|\bimport\s*\(\s*)(["']))\./([A-Za-z0-9_.-]+\.js)\2""")
 INIT_APP = "'js/app.js'"
+# Any relative .js reference left without a token after patching, such as a
+# bare import "./x.js" or a ../ path a later File Manager might add.
+LEFTOVER = re.compile(r"""["']\.{1,2}/[^"'?]*\.js["']""")
 
 
 def fail(message):
@@ -77,6 +80,10 @@ for path in modules:
 
 if counts != EXPECTED:
     fail("unexpected module imports %s; expected %s" % (counts, EXPECTED))
+for path in modules:
+    leftover = LEFTOVER.findall(patched.get(path, path.read_text(encoding="utf-8")))
+    if leftover:
+        fail("%s would keep unversioned module references: %s" % (path, leftover))
 
 init.write_text(init_patched, encoding="utf-8")
 for path, new in patched.items():
