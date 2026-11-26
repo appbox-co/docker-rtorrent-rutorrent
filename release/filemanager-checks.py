@@ -7,9 +7,13 @@ The release gate pipes this file to `docker exec -i <container> python3 - MODE`.
                  (Novik/ruTorrent#3316). EXPECT is "none", or "filemanager-1.5.1"
                  for the control: File Manager 1.5.1's seven string commands
                  in plugins/filemanager/js/ui-fs.js and nothing else.
-  api            create, rename and list a folder through File Manager's own
-                 endpoint, with the request encoded as File Manager 1.6.0's
-                 JavaScript encodes it (JSON.stringify), then remove it.
+  api            create, rename and list a folder in /torrents/completed
+                 through File Manager's own endpoint, with the request encoded
+                 as File Manager 1.6.0's JavaScript encodes it
+                 (JSON.stringify), then remove it. File Manager's root is
+                 /torrents, which a fresh gate volume leaves owned by root;
+                 rTorrent runs File Manager's commands as rtorrent, so the
+                 check works in completed/, which the image creates for it.
 
 ruTorrent's own JavaScript tests (tests/) contain string commands on purpose
 and are not scanned. The container's USERNAME and PASSWORD environment set
@@ -27,6 +31,7 @@ import urllib.request
 
 ROOT = "/var/www/rutorrent"
 TOP = "/torrents"
+WORK = "completed"
 CORE_RULE = "must be a function, not a string"
 # [label, "command("...] or [CMENU_SEL, label, "command("...], optionally
 # with a (condition) ? null : "command(" ternary, as File Manager 1.5.1 has.
@@ -114,17 +119,17 @@ def call(payload):
 def api():
     name = "appbox-gate-flm-" + secrets.token_hex(4)
     renamed = name + " renamed 'quoted'"
-    created = os.path.join(TOP, name)
-    moved = os.path.join(TOP, renamed)
+    created = os.path.join(TOP, WORK, name)
+    moved = os.path.join(TOP, WORK, renamed)
     try:
-        call({"method": "newDirectory", "target": "/" + name})
+        call({"method": "newDirectory", "target": "/%s/%s" % (WORK, name)})
         if not os.path.isdir(created):
             fail("newDirectory reported success but %s does not exist" % created)
         owner = os.stat(created)
-        call({"method": "fileRename", "target": "/" + name, "to": "/" + renamed})
+        call({"method": "fileRename", "target": "/%s/%s" % (WORK, name), "to": "/%s/%s" % (WORK, renamed)})
         if os.path.exists(created) or not os.path.isdir(moved):
             fail("fileRename did not move %s to %s" % (created, moved))
-        listing = call({"method": "listDirectory", "dir": "/"}).get("listing")
+        listing = call({"method": "listDirectory", "dir": "/" + WORK}).get("listing")
         names = {entry.get("name", "").rstrip("/") for entry in listing or []}
         if renamed not in names:
             fail("listDirectory does not show the renamed folder: %s" % sorted(names)[:20])

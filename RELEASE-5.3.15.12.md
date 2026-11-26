@@ -53,7 +53,10 @@ are not touched.
   still present. The control, `menus filemanager-1.5.1`, must find exactly
   1.5.1's seven on 5.3.15.11;
 - `api`: create, rename (to a name with a space and quotes) and list a folder
-  through `plugins/filemanager/action.php`, encoded as v1.6.0's JavaScript
-  sends it;
+  in `/torrents/completed` through `plugins/filemanager/action.php`, encoded
+  as v1.6.0's JavaScript sends it. File Manager runs its commands through
+  rTorrent, as rtorrent; a fresh gate volume leaves `/torrents` itself owned
+  by root, so the first trial's attempt there failed the same way on
+  5.3.15.11;
 - the 5.3.15.11 runtime, login and autodl send checks, on a fresh install,
   after a restart and after an upgrade from 5.3.15.11 on the same volumes.
