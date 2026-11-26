@@ -38,8 +38,17 @@ v1.6.0 has the same file list as v1.5.1. Its changes:
 
 The PHP side is unchanged. rTorrent, libtorrent, ruTorrent, the other plugins,
 themes, PHP 8.5.13, nginx, autodl and the basic-auth behaviour are those of
-5.3.15.11. Customers need no action after updating; their files and settings
-are not touched.
+5.3.15.11. Files and settings are not touched.
+
+Browsers may keep the 1.5.1 scripts after the update. File Manager loads
+`js/app.js` (and through it `ui-fs.js`, `api.js` and `utils.js`) with a
+dynamic `import()` that has no version query, and nginx sends no
+Cache-Control, so a browser that used File Manager in the last few days can
+serve them from its cache on a normal reload: the entries stay greyed out,
+and a mix of the old `api.js` with the new `utils.js` would break every File
+Manager request. A hard reload (Ctrl+Shift+R, Cmd+Shift+R on a Mac) fetches
+the new files. The release notes and the ticket reply say so, and the canary
+updates a 5.3.15.11 instance that has used File Manager.
 
 ## Testing
 
@@ -49,9 +58,11 @@ are not touched.
   (types, modes, nobody:nogroup, SHA-256 of every file), 5.3.15.11's must
   match v1.5.1 the same way, and every path outside it must be unchanged;
 - `menus none`: no context-menu entry in ruTorrent's JavaScript (outside
-  `tests/`) has a string command, and ruTorrent's rule that greys them out is
-  still present. The control, `menus filemanager-1.5.1`, must find exactly
-  1.5.1's seven on 5.3.15.11;
+  `tests/`) has a string command containing a call, ruTorrent's rule that
+  greys them out is still present, and no plugin still calls
+  `flm.utils.json_encode`. The pattern is a regression tripwire; the browser
+  test checks the menu itself. The control, `menus filemanager-1.5.1`, must
+  find 1.5.1's seven, all in `js/ui-fs.js`, on 5.3.15.11;
 - `api`: create, rename (to a name with a space and quotes) and list a folder
   in `/torrents/completed` through `plugins/filemanager/action.php`, encoded
   as v1.6.0's JavaScript sends it. File Manager runs its commands through
@@ -103,3 +114,25 @@ an SSH tunnel, File Manager tab, `/completed` with two folders and two files:
   only console errors were 404s for optional theme files and core images
   (`plugins/theme/themes/appbox/*.css`, `css/images/*.png`), none from File
   Manager.
+
+## Review
+
+Two reviewers who did not write the change, Claude Opus 5.5 and Claude
+Sonnet 5.5, both found it ready to roll out as admin-only with a canary.
+
+- Opus: browsers can keep the 1.5.1 scripts after the update (see "What
+  changed"). Fixed in the notes, the catalogue release notes and the canary
+  plan; nginx is not changed in this release.
+- Both: `flm_expected` ended in `} | sort`, so its error paths could never
+  fire. It now writes `git ls-tree` to a file, fails on an unexpected entry,
+  and the tag checks use `$TAB` instead of a literal tab. Its output is the
+  same 180 lines.
+- Opus: the control's command list did not prove "seven only"; it is now the
+  file set and a count of seven. Sonnet: the scan only finds string commands
+  that contain a call; the wording now says it is a tripwire.
+- Sonnet: nothing checked that no other plugin calls the removed
+  `flm.utils.json_encode`; `menus none` now fails if one does.
+- Sonnet: the autodl send check is redundant for this change. Left in: it
+  costs about 45 seconds and keeps 5.3.15.11's fix checked end to end on the
+  image that ships it.
+

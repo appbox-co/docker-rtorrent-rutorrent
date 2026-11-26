@@ -120,7 +120,8 @@ The Dockerfile builds or vendors:
 - `filemanager` (1.6.0 since 5.3.15.12), `filemanager-media` (1.4.0), and
   `filemanager-share` (1.5.0). ruTorrent 5 greys out a context-menu entry whose
   command is a string, so a plugin update must give menu commands as functions;
-  `release/filemanager-checks.py menus none` scans for them.
+  `release/filemanager-checks.py menus none` scans for string commands that
+  contain a call (a tripwire; check the menu in a browser too).
 - `ratiocolor` (Gyran, pinned commit), patched by `scripts/patch-ratiocolor.py` to colour
   the ratio text and to recolour after ruTorrent 5's in-place `syncDOM()` cell updates.
 - `appbox` ruTorrent theme into `/var/www/rutorrent/plugins/theme/themes/appbox`.

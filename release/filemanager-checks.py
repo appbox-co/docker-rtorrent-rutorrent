@@ -3,10 +3,14 @@
 The release gate pipes this file to `docker exec -i <container> python3 - MODE`.
 
   menus EXPECT   scan ruTorrent's JavaScript for context-menu entries whose
-                 command is a string, which ruTorrent 5 greys out
-                 (Novik/ruTorrent#3316). EXPECT is "none", or "filemanager-1.5.1"
-                 for the control: File Manager 1.5.1's seven string commands
-                 in plugins/filemanager/js/ui-fs.js and nothing else.
+                 command is a string of code such as "flm.goToPath(...)",
+                 which ruTorrent 5 greys out (Novik/ruTorrent#3316). The
+                 pattern needs a "(" in the string, so it is a regression
+                 tripwire, not a proof; the browser test checks the menu.
+                 EXPECT is "none" (which also fails if another plugin still
+                 calls flm.utils.json_encode, removed in File Manager 1.6.0),
+                 or "filemanager-1.5.1" for the control: File Manager 1.5.1's
+                 seven string commands in plugins/filemanager/js/ui-fs.js.
   api            create, rename and list a folder in /torrents/completed
                  through File Manager's own endpoint, with the request encoded
                  as File Manager 1.6.0's JavaScript encodes it
@@ -39,15 +43,6 @@ STRING_COMMAND = re.compile(
     r"""\[\s*(?:theUILang\.[A-Za-z_]+|CMENU_SEL\s*,\s*[^,\]]+|"[^"\n]*"|'[^'\n]*')\s*,\s*"""
     r"""(?:\([^)]*\)\s*\?\s*[^:]+:\s*)?(?:"[^"\n]*\(|'[^'\n]*\()"""
 )
-FLM_151_COMMANDS = [
-    "flm.ui.getDialogs().showDialog('mkdir')",
-    "flm.ui.getDialogs().showDialog('copy')",
-    "flm.ui.getDialogs().showDialog('move')",
-    "flm.ui.getDialogs().showDialog('delete')",
-    "flm.ui.getDialogs().showDialog('rename')",
-    "flm.ui.getDialogs().showDialog('mkdir')",
-    "flm.goToPath(flm.currentPath)",
-]
 
 
 def fail(message):
@@ -57,6 +52,7 @@ def fail(message):
 
 def scan():
     hits = []
+    encoder_calls = []
     for dirpath, dirnames, filenames in os.walk(ROOT):
         if dirpath == ROOT:
             dirnames[:] = [d for d in dirnames if d != "tests"]
@@ -71,7 +67,9 @@ def scan():
                         continue
                     if STRING_COMMAND.search(line):
                         hits.append((os.path.relpath(path, ROOT), number, stripped))
-    return hits
+                    if "flm.utils.json_encode" in line:
+                        encoder_calls.append("%s:%d" % (os.path.relpath(path, ROOT), number))
+    return hits, encoder_calls
 
 
 def menus(expect):
@@ -80,7 +78,7 @@ def menus(expect):
             fail("ruTorrent's js/objects.js no longer greys out string menu commands; the check is out of date")
     with open(os.path.join(ROOT, "plugins/filemanager/plugin.info"), encoding="utf-8") as handle:
         version = re.search(r"^plugin\.version:\s*(\S+)", handle.read(), re.M).group(1)
-    hits = scan()
+    hits, encoder_calls = scan()
     for path, number, line in hits:
         print("string menu command: %s:%d %s" % (path, number, line[:160]))
     if expect == "none":
@@ -88,12 +86,13 @@ def menus(expect):
             fail("File Manager is %s, not 1.6.0" % version)
         if hits:
             fail("%d context-menu entries still have string commands" % len(hits))
+        if encoder_calls:
+            fail("flm.utils.json_encode, removed in File Manager 1.6.0, is still called: %s" % encoder_calls)
     elif expect == "filemanager-1.5.1":
         if version != "1.5.1":
             fail("control: File Manager is %s, not 1.5.1" % version)
         files = {path for path, _, _ in hits}
-        found = [cmd for _, _, line in hits for cmd in dict.fromkeys(FLM_151_COMMANDS) if '"%s"' % cmd in line]
-        if files != {"plugins/filemanager/js/ui-fs.js"} or found != FLM_151_COMMANDS:
+        if files != {"plugins/filemanager/js/ui-fs.js"} or len(hits) != 7:
             fail("control: expected File Manager 1.5.1's seven string commands only, found %d in %s"
                  % (len(hits), sorted(files)))
     else:

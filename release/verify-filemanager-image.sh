@@ -228,24 +228,27 @@ flm_check() {
 # File Manager at COMMIT, cloned as the Dockerfile clones it (".git*" removed,
 # owned by nobody:nogroup). Upstream has only plain files and directories.
 flm_expected() {
+    git -C "$work_dir/flm" ls-tree -r -t --full-tree "$1" > "$work_dir/flm-tree" \
+        || fail "could not list File Manager $1"
     {
         echo "d 755 nobody:nogroup $FLM_DIR -> "
-        git -C "$work_dir/flm" ls-tree -r -t --full-tree "$1" | while IFS=$(printf '\t') read -r flm_meta flm_path; do
+        while IFS=$TAB read -r flm_meta flm_path; do
             case "$flm_path" in .git*) continue ;; esac
             case "$flm_meta" in
                 "040000 tree "*) echo "d 755 nobody:nogroup $FLM_DIR/$flm_path -> " ;;
                 "100644 blob "*) echo "f 644 nobody:nogroup $FLM_DIR/$flm_path -> " ;;
                 "100755 blob "*) echo "f 755 nobody:nogroup $FLM_DIR/$flm_path -> " ;;
-                *) echo "unexpected entry in File Manager $1: $flm_meta $flm_path" >&2; return 1 ;;
+                *) fail "unexpected entry in File Manager $1: $flm_meta $flm_path" ;;
             esac
-        done
-        git -C "$work_dir/flm" ls-tree -r --full-tree "$1" | while IFS=$(printf '\t') read -r flm_meta flm_path; do
-            case "$flm_path" in .git*) continue ;; esac
-            flm_object=${flm_meta##* }
-            echo "$(git -C "$work_dir/flm" cat-file blob "$flm_object" | sha256sum | cut -c1-64)  $FLM_DIR/$flm_path"
-        done
-    } | sort
+            case "$flm_meta" in
+                *" blob "*) echo "$(git -C "$work_dir/flm" cat-file blob "${flm_meta##* }" | sha256sum | cut -c1-64)  $FLM_DIR/$flm_path" ;;
+            esac
+        done < "$work_dir/flm-tree"
+    } > "$work_dir/flm-unsorted"
+    sort "$work_dir/flm-unsorted"
 }
+
+TAB=$(printf '\t')
 
 # The lines of a filesystem listing that describe FLM_DIR or anything in it.
 FLM_LINE="^([a-z] [0-7]+ [^ ]+ |[0-9a-f]{64}  )$FLM_DIR(/.*)?( -> .*)?\$"
@@ -330,10 +333,10 @@ git -C "$work_dir/flm" fetch -q --depth 1 "$FLM_REPO" "$FLM_OLD_COMMIT" "$FLM_NE
     || fail "could not fetch File Manager $FLM_OLD_TAG and $FLM_NEW_TAG"
 git ls-remote "$FLM_REPO" "refs/tags/$FLM_OLD_TAG" "refs/tags/$FLM_NEW_TAG" > "$work_dir/flm-tags" \
     || fail "could not read File Manager's tags"
-grep -qx "$FLM_OLD_COMMIT	refs/tags/$FLM_OLD_TAG" "$work_dir/flm-tags" || fail "$FLM_OLD_TAG is not $FLM_OLD_COMMIT upstream"
-grep -qx "$FLM_NEW_COMMIT	refs/tags/$FLM_NEW_TAG" "$work_dir/flm-tags" || fail "$FLM_NEW_TAG is not $FLM_NEW_COMMIT upstream"
-flm_expected "$FLM_OLD_COMMIT" > "$work_dir/flm-old-expected" || fail "could not list File Manager $FLM_OLD_TAG"
-flm_expected "$FLM_NEW_COMMIT" > "$work_dir/flm-new-expected" || fail "could not list File Manager $FLM_NEW_TAG"
+grep -qx "$FLM_OLD_COMMIT${TAB}refs/tags/$FLM_OLD_TAG" "$work_dir/flm-tags" || fail "$FLM_OLD_TAG is not $FLM_OLD_COMMIT upstream"
+grep -qx "$FLM_NEW_COMMIT${TAB}refs/tags/$FLM_NEW_TAG" "$work_dir/flm-tags" || fail "$FLM_NEW_TAG is not $FLM_NEW_COMMIT upstream"
+flm_expected "$FLM_OLD_COMMIT" > "$work_dir/flm-old-expected"
+flm_expected "$FLM_NEW_COMMIT" > "$work_dir/flm-new-expected"
 grep -E "$FLM_LINE" "$work_dir/base-fs" | sort > "$work_dir/flm-base" || true
 grep -E "$FLM_LINE" "$work_dir/image-fs" | sort > "$work_dir/flm-image" || true
 cmp -s "$work_dir/flm-base" "$work_dir/flm-old-expected" \
