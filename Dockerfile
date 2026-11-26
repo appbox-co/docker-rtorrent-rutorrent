@@ -177,7 +177,7 @@ COPY mobile /var/www/rutorrent/plugins/mobile
 RUN chown -R nobody:nogroup /var/www/rutorrent/plugins/mobile
 COPY scripts/patch-autodl-rutorrent-html5.py /usr/local/bin/patch-autodl-rutorrent-html5.py
 COPY scripts/patch-rutorrent-stable-progress.py /usr/local/bin/patch-rutorrent-stable-progress.py
-COPY scripts/patch-filemanager-module-urls.py /usr/local/bin/patch-filemanager-module-urls.py
+COPY --chmod=644 scripts/patch-filemanager-module-urls.py /usr/local/bin/patch-filemanager-module-urls.py
 COPY --from=src-geoip2-rutorrent --chown=nobody:nogroup /src /var/www/rutorrent/plugins/geoip2
 COPY --from=src-mmdb /src /var/mmdb
 

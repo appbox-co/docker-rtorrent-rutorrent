@@ -22,5 +22,5 @@ FROM repo.cylo.net/rutorrent@sha256:8fd8aa1036a6115205e74e28349a6fa2df08126ae9f1
 
 LABEL io.appbox.rutorrent.base-image="repo.cylo.net/rutorrent@sha256:8fd8aa1036a6115205e74e28349a6fa2df08126ae9f1de8fb72b2b9f647fd47f"
 
-COPY scripts/patch-filemanager-module-urls.py /usr/local/bin/patch-filemanager-module-urls.py
+COPY --chmod=644 scripts/patch-filemanager-module-urls.py /usr/local/bin/patch-filemanager-module-urls.py
 RUN python3 /usr/local/bin/patch-filemanager-module-urls.py /var/www/rutorrent/plugins/filemanager
