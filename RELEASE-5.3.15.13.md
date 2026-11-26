@@ -145,3 +145,23 @@ before and after the checks, and the first push succeeded.
 Catalogue: cylo-api `migrations/20261126_rutorrent_5_3_15_13.sql` (admin-only,
 not default) and `..._publish.sql`, in place of 5.3.15.12's publish migration.
 
+
+## Canary
+
+2026-11-26 on grant, instance 267021 (`rutorrent.grant.appboxes.co`), Chrome
+through the Appbox proxy, following a customer's path from 5.3.15.11:
+
+1. Instance on 5.3.15.11 (via its page's Update button). File Manager 1.5.1's
+   modules downloaded, and a normal reload then served all of them from
+   the browser cache (transfer size 0), with the 1.5.1 encoder loaded.
+2. Switched to 5.3.15.13 from the instance page (about 4 minutes).
+3. One normal reload: `php/getplugins.php` came back new (393 KB), and every
+   File Manager module was downloaded at `?v=e25127a6c9e3`. The 1.5.1 encoder
+   was gone.
+4. File Manager menu in `/completed`: New Directory and Refresh enabled.
+   New Directory created "Canary 13", which was then shown with Copy, Move,
+   Delete and Rename enabled. Delete removed it through the task console. No
+   console errors.
+
+On 5.3.15.12 the same steps left the menu greyed out until the cached
+modules were forced fresh.
