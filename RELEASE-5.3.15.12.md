@@ -161,3 +161,32 @@ first push succeeded.
 Catalogue: cylo-api `migrations/20261126_rutorrent_5_3_15_12.sql` (admin-only,
 not default) and `..._publish.sql`.
 
+
+## Canary
+
+2026-11-26 on grant, instance 267021 (`rutorrent.grant.appboxes.co`), in a
+Chrome that had used ruTorrent on that domain before:
+
+- Installed 5.3.15.11. File Manager's Copy, Move, Delete, Rename and
+  Refresh were greyed out (`dis`): the ticket's fault, reproduced.
+- Through the Appbox proxy, `plugins/filemanager/js/*.js` are served with no
+  Cache-Control or Expires header, only Last-Modified (13 Oct for 1.5.1) and
+  an ETag.
+- Switched the instance to 5.3.15.12 from its page (about 4 minutes, the
+  dialog already advises a hard refresh). After a normal reload the menu was
+  still greyed out: File Manager's modules all came from the browser cache
+  (transfer size 0) and the 1.5.1 encoder was still loaded.
+- **A hard reload (Cmd+Shift+R) did not help.** It re-downloaded ruTorrent's
+  own scripts, but File Manager's modules are loaded later by `import()`,
+  which a hard reload does not bypass, so they came from the cache again.
+  Chrome keeps them for 10% of their age at the time they were cached, so a
+  few days for files dated 13 Oct.
+- After refreshing those cache entries with `fetch(..., {cache: 'reload'})`
+  and a normal reload, 1.6.0 was running: every entry was enabled, Rename
+  and Delete worked through the menu in `/completed`, and New Directory
+  worked there through the API.
+- New Directory at File Manager's top level (`/`, which is `/torrents`)
+  failed with "Error Processing Request" on 5.3.15.12, and the UI showed no
+  error. `/torrents` is not writable by rtorrent on Appbox either. This was
+  already so on 5.3.15.11 (the entry was greyed out there) and is not caused
+  by this release.
