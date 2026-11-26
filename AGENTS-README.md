@@ -20,9 +20,10 @@ users, additional plugins, and a custom mobile ruTorrent UI.
   security release (`-f Dockerfile.php-security`) and `5.3.15.8-0.16.24` the
   autodl theme stylesheet release (`-f Dockerfile.autodl-themes`), followed by
   `5.3.15.9-0.16.24` (same Dockerfile), then `5.3.15.10-0.16.24`, which adds
-  club-QuickBox v2 (`-f Dockerfile.quickbox-v2`), and `5.3.15.11-0.16.24`,
+  club-QuickBox v2 (`-f Dockerfile.quickbox-v2`), `5.3.15.11-0.16.24`,
   which gives autodl-irssi rTorrent's SCGI address
-  (`-f Dockerfile.autodl-rt-address`); see below.
+  (`-f Dockerfile.autodl-rt-address`), and `5.3.15.12-0.16.24`, with File
+  Manager 1.6.0 (`-f Dockerfile.filemanager-1.6.0`); see below.
 - Base runtime: `crazymax/alpine-s6:3.24-3.2.3.0`
 - rTorrent / libtorrent: `0.16.24`
 - ruTorrent: `5.3.15` (upstream commit `fe468360f94b02def11bbf67b16316bbe8081380`, catalogue `5.3.15.4`)
@@ -116,7 +117,10 @@ The Dockerfile builds or vendors:
   `/torrents/config/rtorrent/.rtorrent.rc`. Keep the two socket paths in step with
   `cfg.rundir` in `.rtlocal.rc`.
 - `autodl-rutorrent` into `/var/www/rutorrent/plugins/autodl-rutorrent`.
-- `filemanager`, `filemanager-media`, and `filemanager-share`.
+- `filemanager` (1.6.0 since 5.3.15.12), `filemanager-media` (1.4.0), and
+  `filemanager-share` (1.5.0). ruTorrent 5 greys out a context-menu entry whose
+  command is a string, so a plugin update must give menu commands as functions;
+  `release/filemanager-checks.py menus none` scans for them.
 - `ratiocolor` (Gyran, pinned commit), patched by `scripts/patch-ratiocolor.py` to colour
   the ratio text and to recolour after ruTorrent 5's in-place `syncDOM()` cell updates.
 - `appbox` ruTorrent theme into `/var/www/rutorrent/plugins/theme/themes/appbox`.
@@ -331,6 +335,27 @@ docker build --builder default --pull --no-cache --platform linux/amd64 \
   -f Dockerfile.autodl-rt-address -t repo.cylo.net/rutorrent:5.3.15.11-0.16.24 . && \
   release/verify-autodl-rt-address-image.sh repo.cylo.net/rutorrent:5.3.15.11-0.16.24 && \
   docker push repo.cylo.net/rutorrent:5.3.15.11-0.16.24
+```
+
+## File Manager 1.6.0 (5.3.15.12)
+
+`Dockerfile.filemanager-1.6.0` builds catalogue `5.3.15.12` / tag `5.3.15.12-0.16.24`
+from the 5.3.15.11 digest and replaces `/var/www/rutorrent/plugins/filemanager`
+(1.5.1) with upstream v1.6.0 (`501aa63`), owned by nobody:nogroup. 1.5.1's New
+Directory, Copy, Move, Delete, Rename and Refresh were string menu commands,
+which ruTorrent 5 greys out. Release gate:
+`release/verify-filemanager-image.sh <image>` (the plugin directory must equal
+upstream v1.6.0 file for file and everything else 5.3.15.11;
+`release/filemanager-checks.py` finds no string menu commands, where 5.3.15.11
+must show File Manager 1.5.1's seven, and creates, renames and lists a folder
+through the plugin's API on a fresh install, after a restart and after an
+upgrade). Details in `RELEASE-5.3.15.12.md`.
+
+```bash
+docker build --builder default --pull --no-cache --platform linux/amd64 \
+  -f Dockerfile.filemanager-1.6.0 -t repo.cylo.net/rutorrent:5.3.15.12-0.16.24 . && \
+  release/verify-filemanager-image.sh repo.cylo.net/rutorrent:5.3.15.12-0.16.24 && \
+  docker push repo.cylo.net/rutorrent:5.3.15.12-0.16.24
 ```
 
 ## Build And Release

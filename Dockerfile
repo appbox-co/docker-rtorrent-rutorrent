@@ -330,7 +330,7 @@ rm -f _conf.php
 python3 /usr/local/bin/patch-autodl-rutorrent-html5.py /var/www/rutorrent/plugins/autodl-rutorrent
 cd /var/www/rutorrent/plugins
 # File manager suite (not shipped in Novik/ruTorrent core; same stack as prior Appbox images)
-git clone --depth 1 -b v1.5.1 https://github.com/nelu/rutorrent-filemanager.git filemanager
+git clone --depth 1 -b v1.6.0 https://github.com/nelu/rutorrent-filemanager.git filemanager
 rm -rf filemanager/.git*
 git clone --depth 1 -b v1.4.0 https://github.com/nelu/rutorrent-filemanager-media.git filemanager-media
 rm -rf filemanager-media/.git*

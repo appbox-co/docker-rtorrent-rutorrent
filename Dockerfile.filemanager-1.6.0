@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1
+# ruTorrent 5.3.15.12: the published 5.3.15.11 image with File Manager
+# (nelu/rutorrent-filemanager) 1.6.0 in place of 1.5.1.
+#
+# ruTorrent 5 (Novik/ruTorrent#3316, in every 5.3.15.x image) disables a
+# context-menu entry whose command is a string and logs "Context menu command
+# must be a function, not a string". File Manager 1.5.1 gives New Directory,
+# Copy, Move, Delete, Rename and Refresh as strings, so they were greyed out
+# in the File Manager tab. 1.6.0 gives them as functions (upstream #88). Its
+# other change sends API requests with JSON.stringify instead of the plugin's
+# own encoder; the PHP side is unchanged.
+#
+# The plugin directory is replaced file for file: 1.5.1 and 1.6.0 have the
+# same file list, and only js/ui-fs.js, js/api.js, js/utils.js, plugin.info
+# and Dockerfile differ. Starting from the 5.3.15.11 digest keeps rTorrent,
+# libtorrent, ruTorrent, the other plugins, PHP and every Alpine package
+# exactly as deployed. release/verify-filemanager-image.sh is the release gate.
+#
+# Release build (dedicated builder, from the exact pushed commit):
+#   docker build --builder default --pull --no-cache --platform linux/amd64 \
+#     -f Dockerfile.filemanager-1.6.0 -t repo.cylo.net/rutorrent:5.3.15.12-0.16.24 .
+
+ARG FILEMANAGER_COMMIT=501aa6378350699f36ec5c6b9f373475e6420c7d
+
+FROM alpine:3.24 AS src-filemanager
+ARG FILEMANAGER_COMMIT
+RUN apk --no-cache add git
+WORKDIR /src
+RUN git init -q . \
+  && git remote add origin https://github.com/nelu/rutorrent-filemanager.git \
+  && git fetch -q --depth 1 origin "${FILEMANAGER_COMMIT}" \
+  && git checkout -q FETCH_HEAD \
+  && test "$(git rev-parse HEAD)" = "${FILEMANAGER_COMMIT}" \
+  && grep -qx 'plugin.version: 1.6.0' plugin.info \
+  && rm -rf .git*
+
+FROM repo.cylo.net/rutorrent@sha256:3fc67478bd5f9a476adfc2ccc8f976618852e061682d16c0bb042eb564259137
+
+LABEL io.appbox.rutorrent.base-image="repo.cylo.net/rutorrent@sha256:3fc67478bd5f9a476adfc2ccc8f976618852e061682d16c0bb042eb564259137"
+
+COPY --from=src-filemanager --chown=nobody:nogroup /src/ /var/www/rutorrent/plugins/filemanager/
