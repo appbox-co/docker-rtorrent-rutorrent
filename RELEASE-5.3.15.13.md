@@ -165,3 +165,12 @@ through the Appbox proxy, following a customer's path from 5.3.15.11:
 
 On 5.3.15.12 the same steps left the menu greyed out until the cached
 modules were forced fresh.
+
+## Published as the default
+
+appbox-co/cylo-api#310 merged (cd579a70), and `20261126_rutorrent_5_3_15_13_publish.sql`
+was applied at 2026-11-26 10:49:52 UTC. 5.3.15.13 (row 1629) is the default in place
+of 5.3.15.11. 5.3.15.12 (row 1628) and 5.3.15.10 (row 1626) stay admin-only, and older
+versions stay enabled. Instances on 5.3.15.2, 5.3.15.7, 5.3.15.8, 5.3.15.9 and 5.3.15.11
+are offered the update. No fleet update was run. The grant canary was uninstalled
+afterwards (no container or app directory left).
