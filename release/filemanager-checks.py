@@ -11,6 +11,12 @@ The release gate pipes this file to `docker exec -i <container> python3 - MODE`.
                  calls flm.utils.json_encode, removed in File Manager 1.6.0),
                  or "filemanager-1.5.1" for the control: File Manager 1.5.1's
                  seven string commands in plugins/filemanager/js/ui-fs.js.
+  modules EXPECT File Manager's module imports (init.js and js/*.js). EXPECT is
+                 the ?v= token scripts/patch-filemanager-module-urls.py gave
+                 them: all ten imports must carry it, every versioned URL
+                 must be served with the file's bytes, and ruTorrent's
+                 php/getplugins.php must hand browsers the versioned import.
+                 "unversioned" is the control: no import carries a token.
   api            create, rename and list a folder in /torrents/completed
                  through File Manager's own endpoint, with the request encoded
                  as File Manager 1.6.0's JavaScript encodes it
@@ -100,6 +106,47 @@ def menus(expect):
     print(json.dumps({"filemanager": version, "string_menu_commands": len(hits)}))
 
 
+IMPORT = re.compile(r"""(?:\bfrom\s+|\bimport\s*\(\s*)["']\./([A-Za-z0-9_.-]+\.js)(?:\?v=([0-9a-f]+))?["']""")
+
+
+def get(path):
+    login = base64.b64encode((os.environ["USERNAME"] + ":" + os.environ["PASSWORD"]).encode()).decode()
+    request = urllib.request.Request("http://127.0.0.1" + path, headers={"Authorization": "Basic " + login})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        return response.status, response.read()
+
+
+def modules(expect):
+    flm = os.path.join(ROOT, "plugins/filemanager")
+    with open(os.path.join(flm, "init.js"), encoding="utf-8") as handle:
+        init = handle.read()
+    app_versions = re.findall(r"'js/app\.js(?:\?v=([0-9a-f]+))?'", init)
+    imports = []
+    for name in sorted(os.listdir(os.path.join(flm, "js"))):
+        if name.endswith(".js"):
+            with open(os.path.join(flm, "js", name), encoding="utf-8") as handle:
+                imports += [(name, target, version) for target, version in IMPORT.findall(handle.read())]
+    tokens = {version for _, _, version in imports} | set(app_versions)
+    if len(app_versions) != 1 or len(imports) != 9:
+        fail("expected one app.js import in init.js and nine in js/, found %d and %d" % (len(app_versions), len(imports)))
+    if expect == "unversioned":
+        if tokens != {""}:
+            fail("control: module imports already carry tokens %s" % sorted(tokens))
+        print(json.dumps({"module_imports": 10, "versioned": 0}))
+        return
+    if tokens != {expect}:
+        fail("module imports carry %s, expected only ?v=%s" % (sorted(tokens), expect))
+    for target in sorted({"app.js"} | {target for _, target, _ in imports}):
+        status, body = get("/plugins/filemanager/js/%s?v=%s" % (target, expect))
+        with open(os.path.join(flm, "js", target), "rb") as handle:
+            if status != 200 or body != handle.read():
+                fail("js/%s?v=%s was not served with the file's content (HTTP %s)" % (target, expect, status))
+    status, body = get("/php/getplugins.php")
+    if status != 200 or ("js/app.js?v=%s'" % expect).encode() not in body:
+        fail("php/getplugins.php does not hand browsers the versioned app.js import (HTTP %s)" % status)
+    print(json.dumps({"module_imports": 10, "versioned": 10, "token": expect, "served": "ok"}))
+
+
 def call(payload):
     login = base64.b64encode((os.environ["USERNAME"] + ":" + os.environ["PASSWORD"]).encode()).decode()
     body = urllib.parse.urlencode({"action": json.dumps(payload)}).encode()
@@ -142,7 +189,9 @@ def api():
 
 if len(sys.argv) == 3 and sys.argv[1] == "menus":
     menus(sys.argv[2])
+elif len(sys.argv) == 3 and sys.argv[1] == "modules":
+    modules(sys.argv[2])
 elif len(sys.argv) == 2 and sys.argv[1] == "api":
     api()
 else:
-    fail("usage: filemanager-checks.py menus none|filemanager-1.5.1 | api")
+    fail("usage: filemanager-checks.py menus none|filemanager-1.5.1 | modules TOKEN|unversioned | api")

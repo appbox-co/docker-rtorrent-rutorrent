@@ -22,8 +22,10 @@ users, additional plugins, and a custom mobile ruTorrent UI.
   `5.3.15.9-0.16.24` (same Dockerfile), then `5.3.15.10-0.16.24`, which adds
   club-QuickBox v2 (`-f Dockerfile.quickbox-v2`), `5.3.15.11-0.16.24`,
   which gives autodl-irssi rTorrent's SCGI address
-  (`-f Dockerfile.autodl-rt-address`), and `5.3.15.12-0.16.24`, with File
-  Manager 1.6.0 (`-f Dockerfile.filemanager-1.6.0`); see below.
+  (`-f Dockerfile.autodl-rt-address`), `5.3.15.12-0.16.24`, with File
+  Manager 1.6.0 (`-f Dockerfile.filemanager-1.6.0`), and `5.3.15.13-0.16.24`,
+  which versions File Manager's module URLs
+  (`-f Dockerfile.filemanager-module-urls`); see below.
 - Base runtime: `crazymax/alpine-s6:3.24-3.2.3.0`
 - rTorrent / libtorrent: `0.16.24`
 - ruTorrent: `5.3.15` (upstream commit `fe468360f94b02def11bbf67b16316bbe8081380`, catalogue `5.3.15.4`)
@@ -122,6 +124,9 @@ The Dockerfile builds or vendors:
   command is a string, so a plugin update must give menu commands as functions;
   `release/filemanager-checks.py menus none` scans for string commands that
   contain a call (a tripwire; check the menu in a browser too).
+  `scripts/patch-filemanager-module-urls.py` (5.3.15.13) versions File
+  Manager's module imports so browsers load new modules after an update; it
+  accepts only File Manager 1.6.0's imports, so recheck it on an update.
 - `ratiocolor` (Gyran, pinned commit), patched by `scripts/patch-ratiocolor.py` to colour
   the ratio text and to recolour after ruTorrent 5's in-place `syncDOM()` cell updates.
 - `appbox` ruTorrent theme into `/var/www/rutorrent/plugins/theme/themes/appbox`.
@@ -357,6 +362,28 @@ docker build --builder default --pull --no-cache --platform linux/amd64 \
   -f Dockerfile.filemanager-1.6.0 -t repo.cylo.net/rutorrent:5.3.15.12-0.16.24 . && \
   release/verify-filemanager-image.sh repo.cylo.net/rutorrent:5.3.15.12-0.16.24 && \
   docker push repo.cylo.net/rutorrent:5.3.15.12-0.16.24
+```
+
+## File Manager module URLs (5.3.15.13)
+
+`Dockerfile.filemanager-module-urls` builds catalogue `5.3.15.13` / tag
+`5.3.15.13-0.16.24` from the 5.3.15.12 digest and runs
+`scripts/patch-filemanager-module-urls.py` on the File Manager directory. The
+5.3.15.12 canary showed that browsers keep File Manager's modules, which it
+loads with `import()` and no version query, even after a hard reload; the
+script appends `?v=<content token>` to all ten module imports. Release gate:
+`release/verify-filemanager-module-urls-image.sh <image>` (image equal to
+5.3.15.12 except the four patched files, which must match the script's output
+on upstream v1.6.0, and the script; `release/filemanager-checks.py modules`
+checks the token on every import and that every versioned URL and
+`php/getplugins.php` are served, while 5.3.15.12 must have none). Details in
+`RELEASE-5.3.15.13.md`.
+
+```bash
+docker build --builder default --pull --no-cache --platform linux/amd64 \
+  -f Dockerfile.filemanager-module-urls -t repo.cylo.net/rutorrent:5.3.15.13-0.16.24 . && \
+  release/verify-filemanager-module-urls-image.sh repo.cylo.net/rutorrent:5.3.15.13-0.16.24 && \
+  docker push repo.cylo.net/rutorrent:5.3.15.13-0.16.24
 ```
 
 ## Build And Release

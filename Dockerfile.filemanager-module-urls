@@ -1,0 +1,26 @@
+# ruTorrent 5.3.15.13: the 5.3.15.12 image (File Manager 1.6.0) with File
+# Manager's JavaScript modules on versioned URLs.
+#
+# The 5.3.15.12 canary showed that browsers keep running File Manager 1.5.1
+# after the update, even after a hard reload: File Manager loads its modules
+# with import() at URLs that never change, nothing sends Cache-Control for
+# them, and a hard reload does not bypass the cache for modules loaded later
+# by import(). scripts/patch-filemanager-module-urls.py appends ?v=<token>,
+# derived from the modules' content, to all ten module imports in init.js,
+# js/app.js, js/ui.js and js/file-archive.js, so the next normal reload
+# fetches the new modules. Nothing else changes.
+#
+# Starting from the 5.3.15.12 digest keeps rTorrent, libtorrent, ruTorrent,
+# the plugins, PHP and every Alpine package exactly as built and tested.
+# release/verify-filemanager-module-urls-image.sh is the release gate.
+#
+# Release build (dedicated builder, from the exact pushed commit):
+#   docker build --builder default --pull --no-cache --platform linux/amd64 \
+#     -f Dockerfile.filemanager-module-urls -t repo.cylo.net/rutorrent:5.3.15.13-0.16.24 .
+
+FROM repo.cylo.net/rutorrent@sha256:8fd8aa1036a6115205e74e28349a6fa2df08126ae9f1de8fb72b2b9f647fd47f
+
+LABEL io.appbox.rutorrent.base-image="repo.cylo.net/rutorrent@sha256:8fd8aa1036a6115205e74e28349a6fa2df08126ae9f1de8fb72b2b9f647fd47f"
+
+COPY scripts/patch-filemanager-module-urls.py /usr/local/bin/patch-filemanager-module-urls.py
+RUN python3 /usr/local/bin/patch-filemanager-module-urls.py /var/www/rutorrent/plugins/filemanager

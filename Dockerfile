@@ -177,6 +177,7 @@ COPY mobile /var/www/rutorrent/plugins/mobile
 RUN chown -R nobody:nogroup /var/www/rutorrent/plugins/mobile
 COPY scripts/patch-autodl-rutorrent-html5.py /usr/local/bin/patch-autodl-rutorrent-html5.py
 COPY scripts/patch-rutorrent-stable-progress.py /usr/local/bin/patch-rutorrent-stable-progress.py
+COPY scripts/patch-filemanager-module-urls.py /usr/local/bin/patch-filemanager-module-urls.py
 COPY --from=src-geoip2-rutorrent --chown=nobody:nogroup /src /var/www/rutorrent/plugins/geoip2
 COPY --from=src-mmdb /src /var/mmdb
 
@@ -332,6 +333,8 @@ cd /var/www/rutorrent/plugins
 # File manager suite (not shipped in Novik/ruTorrent core; same stack as prior Appbox images)
 git clone --depth 1 -b v1.6.0 https://github.com/nelu/rutorrent-filemanager.git filemanager
 rm -rf filemanager/.git*
+# Versioned module URLs, so browsers load new File Manager modules after an update.
+python3 /usr/local/bin/patch-filemanager-module-urls.py filemanager
 git clone --depth 1 -b v1.4.0 https://github.com/nelu/rutorrent-filemanager-media.git filemanager-media
 rm -rf filemanager-media/.git*
 git clone --depth 1 -b v1.5.0 https://github.com/nelu/rutorrent-filemanager-share.git filemanager-share
