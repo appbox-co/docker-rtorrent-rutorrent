@@ -122,3 +122,26 @@ ready, with four small points:
   customer trying New Directory there would see, now that the entry works.
 - The full `Dockerfile` path isn't gated. Left as in 5.3.15.12: releases are
   built from the overlays.
+
+## Release
+
+Release build: `docker build --builder default --pull --no-cache --platform linux/amd64 -f Dockerfile.filemanager-module-urls -t repo.cylo.net/rutorrent:5.3.15.13-0.16.24 .`
+on builder.grant from the exact pushed commit
+`de79c5a4d2361ae4db28cde490de305df6db6d94`.
+`release/verify-filemanager-module-urls-image.sh` passed in release mode with
+the trial's results: 5.3.15.12's 40 layers plus two, the image identical to
+5.3.15.12 except the four patched files (token `e25127a6c9e3`) and the
+script, all ten imports versioned and served on a fresh install, after a
+restart and after an upgrade (none on 5.3.15.12), and the menus, File Manager
+API, logins, uploads and autodl working. The registry reported the tag absent
+before and after the checks, and the first push succeeded.
+
+## Published
+
+- `repo.cylo.net/rutorrent:5.3.15.13-0.16.24`
+- Digest: `sha256:7fac83a0da35de7a1380c385d9c862daaca3790e3ed4dfbd8609054cf8d67d92`
+  (OCI index: linux/amd64 `sha256:0d644180032d39a0d33f793aa28e5881b232096866b94e7b7aa7bd9cff451101` plus attestation)
+
+Catalogue: cylo-api `migrations/20261126_rutorrent_5_3_15_13.sql` (admin-only,
+not default) and `..._publish.sql`, in place of 5.3.15.12's publish migration.
+
