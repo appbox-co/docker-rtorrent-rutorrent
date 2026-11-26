@@ -60,3 +60,46 @@ are not touched.
   5.3.15.11;
 - the 5.3.15.11 runtime, login and autodl send checks, on a fresh install,
   after a restart and after an upgrade from 5.3.15.11 on the same volumes.
+
+## Build and gate
+
+Trial runs on builder.grant, each from a `git archive` of a pushed commit:
+`docker build --builder default --pull --no-cache --platform linux/amd64 -f Dockerfile.filemanager-1.6.0`,
+then `release/verify-filemanager-image.sh` in trial mode.
+
+- `b5583b9` failed at the API step: `/torrents` in a fresh gate volume is
+  root:root 755, so rTorrent (as rtorrent) could not create a folder there.
+  The same call failed the same way on a 5.3.15.11 container, so the check
+  moved to `/torrents/completed` (`a6111bb`).
+- `a6111bb` (`local/rutorrent-trial:5.3.15.12-2df764`) passed:
+  - 5.3.15.11's 39 layers plus one, with labels, entrypoint, healthcheck and
+    environment unchanged;
+  - of 33,578 filesystem entries, everything outside the plugin directory is
+    identical to 5.3.15.11; 5.3.15.11's File Manager is exactly v1.5.1 and the
+    image's exactly v1.6.0 (180 lines), with `js/ui-fs.js`, `js/api.js`,
+    `js/utils.js`, `plugin.info` and `Dockerfile` changed;
+  - fresh install and restart: runtime, login and autodl send checks, no
+    string menu commands, and the File Manager API created, renamed and
+    listed a folder as rtorrent (1000:1000);
+  - upgrade from 5.3.15.11 on the same volumes: the control found 1.5.1's
+    seven string commands; afterwards `.rtorrent.rc`, the session torrents,
+    completed data, theme.dat and autodl.cfg were unchanged, and all checks
+    passed;
+  - the registry reported `repo.cylo.net/rutorrent:5.3.15.12-0.16.24` absent
+    (MANIFEST_UNKNOWN) before and after.
+
+## Browser test
+
+The `a6111bb` trial image behind an nginx that adds a test login, opened over
+an SSH tunnel, File Manager tab, `/completed` with two folders and two files:
+
+- the right-click menu's Open, Copy, Move, Delete, Rename and Refresh were all
+  enabled (`menu-cmd`, none `dis`), and Create offered New Directory, New
+  Archive and, for a file, Share;
+- Rename to `Show "S01" it's`, New Directory, Copy of a file into another
+  folder, Move of a file, Delete of a folder (each task console "Done") and
+  Refresh all worked, and the results were on disk, owned by rtorrent;
+- no "Context menu command must be a function" warning in the console. The
+  only console errors were 404s for optional theme files and core images
+  (`plugins/theme/themes/appbox/*.css`, `css/images/*.png`), none from File
+  Manager.
