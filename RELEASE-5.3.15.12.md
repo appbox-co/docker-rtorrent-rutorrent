@@ -136,3 +136,28 @@ Sonnet 5.5, both found it ready to roll out as admin-only with a canary.
   costs about 45 seconds and keeps 5.3.15.11's fix checked end to end on the
   image that ships it.
 
+Opus checked the fixes again (`bbaa2fb`) and found nothing; it ran the old and
+new `flm_expected` under dash on a test repository and got the same output.
+
+## Release
+
+Release build: `docker build --builder default --pull --no-cache --platform linux/amd64 -f Dockerfile.filemanager-1.6.0 -t repo.cylo.net/rutorrent:5.3.15.12-0.16.24 .`
+on builder.grant from the exact pushed commit
+`bbaa2fb234e1b330fee9189623d510d00a01221f`.
+`release/verify-filemanager-image.sh` passed in release mode with the same
+results as the trial: 5.3.15.11's 39 layers plus one, only the plugin
+directory changed and equal to v1.6.0, no string menu commands (the control
+found 1.5.1's seven on 5.3.15.11), and the File Manager API, logins, uploads
+and autodl working on a fresh install, after a restart and after an upgrade.
+The registry reported the tag absent before and after the checks, and the
+first push succeeded.
+
+## Published
+
+- `repo.cylo.net/rutorrent:5.3.15.12-0.16.24`
+- Digest: `sha256:8fd8aa1036a6115205e74e28349a6fa2df08126ae9f1de8fb72b2b9f647fd47f`
+  (OCI index: linux/amd64 `sha256:fabc93ac557829f9eccb93d48c172608e8147a4862d849b394a59a34fe3f1292` plus attestation)
+
+Catalogue: cylo-api `migrations/20261126_rutorrent_5_3_15_12.sql` (admin-only,
+not default) and `..._publish.sql`.
+
